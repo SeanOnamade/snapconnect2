@@ -11,7 +11,9 @@ import {
   Modal,
   TextInput,
   SafeAreaView,
+  Dimensions,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   collection,
   query,
@@ -26,6 +28,9 @@ import {
 import { signOut } from 'firebase/auth';
 import { db, auth } from '../lib/firebase';
 import { useStore } from '../store/useStore';
+import { theme } from '../theme/colors';
+
+const { width } = Dimensions.get('window');
 
 interface Snap {
   id: string;
@@ -94,7 +99,6 @@ export default function FeedScreen({ navigation }: any) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    // The real-time listener will automatically update the data
     setTimeout(() => setRefreshing(false), 1000);
   };
 
@@ -184,55 +188,121 @@ export default function FeedScreen({ navigation }: any) {
   };
 
   const renderSnapItem = ({ item }: { item: Snap }) => (
-    <TouchableOpacity style={styles.snapItem} onPress={() => handleSnapPress(item)}>
-      <Image source={{ uri: item.url }} style={styles.snapImage} />
-      <View style={styles.snapOverlay}>
-        <View style={styles.snapHeader}>
-          <Text style={styles.snapOwner}>{item.ownerEmail}</Text>
-          <Text style={styles.timeAgo}>{getTimeAgo(item.createdAt)}</Text>
-        </View>
-        <Text style={styles.snapCaption}>{item.caption}</Text>
-        <View style={styles.snapFooter}>
-          <Text style={styles.timeRemaining}>{getTimeRemaining(item.expiresAt)}</Text>
-          <View style={styles.interestsTags}>
-            {item.interests.slice(0, 2).map((interest, index) => (
-              <Text key={index} style={styles.interestTag}>
-                #{interest.toLowerCase()}
-              </Text>
-            ))}
+    <TouchableOpacity style={styles.snapCard} onPress={() => handleSnapPress(item)}>
+      <View style={styles.snapContainer}>
+        <Image source={{ uri: item.url }} style={styles.snapImage} />
+        
+        {/* Gradient Overlay */}
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.7)']}
+          style={styles.snapOverlay}
+        >
+          <View style={styles.snapContent}>
+            <View style={styles.snapHeader}>
+              <View style={styles.userInfo}>
+                <LinearGradient
+                  colors={['#2dd4bf', '#14b8a6']}
+                  style={styles.avatarPlaceholder}
+                >
+                  <Text style={styles.avatarText}>
+                    {item.ownerEmail?.[0]?.toUpperCase() || '?'}
+                  </Text>
+                </LinearGradient>
+                <View>
+                  <Text style={styles.snapOwner}>{item.ownerEmail}</Text>
+                  <Text style={styles.timeAgo}>{getTimeAgo(item.createdAt)}</Text>
+                </View>
+              </View>
+              <View style={styles.timeRemainingContainer}>
+                <LinearGradient
+                  colors={['#fb923c', '#f97316']}
+                  style={styles.timeRemainingBadge}
+                >
+                  <Text style={styles.timeRemaining}>⏰ {getTimeRemaining(item.expiresAt)}</Text>
+                </LinearGradient>
+              </View>
+            </View>
+            
+            <Text style={styles.snapCaption}>{item.caption}</Text>
+            
+            <View style={styles.snapFooter}>
+              <View style={styles.interestsTags}>
+                {item.interests.slice(0, 3).map((interest, index) => (
+                  <View key={index} style={styles.interestTag}>
+                    <Text style={styles.interestTagText}>#{interest.toLowerCase()}</Text>
+                  </View>
+                ))}
+              </View>
+              <TouchableOpacity style={styles.replyButton}>
+                <LinearGradient
+                  colors={['#2dd4bf', '#14b8a6']}
+                  style={styles.replyButtonGradient}
+                >
+                  <Text style={styles.replyButtonText}>💬</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </LinearGradient>
       </View>
     </TouchableOpacity>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>SnapConnect</Text>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => navigation.navigate('Camera')}
-          >
-            <Text style={styles.headerButtonText}>📷</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton} onPress={handleLogout}>
-            <Text style={styles.headerButtonText}>⚙️</Text>
-          </TouchableOpacity>
+      {/* Header */}
+      <LinearGradient
+        colors={['#2dd4bf', '#14b8a6']}
+        style={styles.header}
+      >
+        <View style={styles.headerContent}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.headerTitle}>SnapConnect</Text>
+            <Text style={styles.headerSubtitle}>📸 Moments that matter</Text>
+          </View>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => navigation.navigate('Camera')}
+            >
+              <LinearGradient
+                colors={['#fb923c', '#f97316']}
+                style={styles.headerButtonGradient}
+              >
+                <Text style={styles.headerButtonText}>📷</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerButton} onPress={handleLogout}>
+              <View style={styles.headerButtonSecondary}>
+                <Text style={styles.headerButtonTextSecondary}>⚙️</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      </LinearGradient>
 
+      {/* Feed */}
       <FlatList
         data={snaps}
         renderItem={renderSnapItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.feedContainer}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh}
+            colors={['#2dd4bf']}
+            tintColor={'#2dd4bf'}
+          />
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
+            <LinearGradient
+              colors={['#2dd4bf', '#fb923c']}
+              style={styles.emptyStateIcon}
+            >
+              <Text style={styles.emptyStateEmoji}>📸</Text>
+            </LinearGradient>
             <Text style={styles.emptyStateTitle}>No snaps yet!</Text>
             <Text style={styles.emptyStateText}>
               Take your first snap to get started
@@ -241,7 +311,12 @@ export default function FeedScreen({ navigation }: any) {
               style={styles.emptyStateButton}
               onPress={() => navigation.navigate('Camera')}
             >
-              <Text style={styles.emptyStateButtonText}>📷 Take a Snap</Text>
+              <LinearGradient
+                colors={['#fb923c', '#f97316']}
+                style={styles.emptyStateButtonGradient}
+              >
+                <Text style={styles.emptyStateButtonText}>📷 Take a Snap</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         }
@@ -254,54 +329,70 @@ export default function FeedScreen({ navigation }: any) {
         transparent={true}
       >
         <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            {selectedSnap && (
-              <>
-                <Image source={{ uri: selectedSnap.url }} style={styles.modalImage} />
-                <Text style={styles.modalCaption}>{selectedSnap.caption}</Text>
-                <Text style={styles.modalOwner}>by {selectedSnap.ownerEmail}</Text>
-                
-                <TextInput
-                  style={styles.replyInput}
-                  placeholder="Send a quick reply..."
-                  value={replyText}
-                  onChangeText={setReplyText}
-                  multiline
-                  maxLength={100}
-                />
-                
-                <TouchableOpacity
-                  style={styles.suggestReplyButton}
-                  onPress={generateQuickReply}
-                >
-                  <Text style={styles.suggestReplyText}>✨ Quick Reply</Text>
-                </TouchableOpacity>
-                
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.cancelButton]}
-                    onPress={() => {
-                      setShowReplyModal(false);
-                      setReplyText('');
-                      setSelectedSnap(null);
-                    }}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
+          <LinearGradient
+            colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0.8)']}
+            style={styles.modalOverlay}
+          >
+            <View style={styles.modalContent}>
+              {selectedSnap && (
+                <>
+                  <Image source={{ uri: selectedSnap.url }} style={styles.modalImage} />
+                  <Text style={styles.modalCaption}>{selectedSnap.caption}</Text>
+                  <Text style={styles.modalOwner}>by {selectedSnap.ownerEmail}</Text>
+                  
+                  <TextInput
+                    style={styles.replyInput}
+                    placeholder="Send a quick reply..."
+                    placeholderTextColor={theme.colors.neutral.gray[400]}
+                    value={replyText}
+                    onChangeText={setReplyText}
+                    multiline
+                    maxLength={100}
+                  />
                   
                   <TouchableOpacity
-                    style={[styles.modalButton, styles.sendButton, sendingReply && styles.sendButtonDisabled]}
-                    onPress={sendReply}
-                    disabled={sendingReply || !replyText.trim()}
+                    style={styles.suggestReplyButton}
+                    onPress={generateQuickReply}
                   >
-                    <Text style={styles.sendButtonText}>
-                      {sendingReply ? 'Sending...' : 'Send'}
-                    </Text>
+                    <LinearGradient
+                      colors={['#fb923c', '#f97316']}
+                      style={styles.suggestReplyGradient}
+                    >
+                      <Text style={styles.suggestReplyText}>✨ Quick Reply</Text>
+                    </LinearGradient>
                   </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </View>
+                  
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity
+                      style={styles.modalButton}
+                      onPress={() => {
+                        setShowReplyModal(false);
+                        setReplyText('');
+                        setSelectedSnap(null);
+                      }}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      style={[styles.modalButton, styles.sendButtonContainer]}
+                      onPress={sendReply}
+                      disabled={sendingReply || !replyText.trim()}
+                    >
+                      <LinearGradient
+                        colors={['#2dd4bf', '#14b8a6']}
+                        style={styles.sendButtonGradient}
+                      >
+                        <Text style={styles.sendButtonText}>
+                          {sendingReply ? 'Sending...' : 'Send'}
+                        </Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+          </LinearGradient>
         </View>
       </Modal>
     </SafeAreaView>
@@ -311,210 +402,301 @@ export default function FeedScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.neutral.gray[50],
   },
   header: {
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+  },
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+  },
+  headerLeft: {
+    flex: 1,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#333',
+    color: theme.colors.neutral.white,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: theme.colors.neutral.white,
+    opacity: 0.9,
   },
   headerButtons: {
     flexDirection: 'row',
-    gap: 10,
+    gap: theme.spacing.sm,
   },
   headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+  },
+  headerButtonGradient: {
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  headerButtonSecondary: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: theme.borderRadius.lg,
   },
   headerButtonText: {
     fontSize: 18,
   },
-  feedContainer: {
-    padding: 10,
+  headerButtonTextSecondary: {
+    fontSize: 18,
   },
-  snapItem: {
-    marginBottom: 15,
-    borderRadius: 15,
+  feedContainer: {
+    padding: theme.spacing.md,
+    gap: theme.spacing.md,
+  },
+  snapCard: {
+    borderRadius: theme.borderRadius.xl,
     overflow: 'hidden',
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    ...theme.shadows.large,
+  },
+  snapContainer: {
+    position: 'relative',
   },
   snapImage: {
     width: '100%',
-    height: 300,
+    height: 400,
+    backgroundColor: theme.colors.neutral.gray[200],
   },
   snapOverlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    padding: 15,
+    height: '60%',
+    justifyContent: 'flex-end',
+  },
+  snapContent: {
+    padding: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
   snapHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  userInfo: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: theme.spacing.sm,
+    flex: 1,
+  },
+  avatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    color: theme.colors.neutral.white,
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   snapOwner: {
-    color: '#fff',
-    fontSize: 14,
+    color: theme.colors.neutral.white,
+    fontSize: 16,
     fontWeight: '600',
   },
   timeAgo: {
-    color: '#ddd',
+    color: theme.colors.neutral.white,
     fontSize: 12,
+    opacity: 0.8,
+  },
+  timeRemainingContainer: {
+    borderRadius: theme.borderRadius.full,
+    overflow: 'hidden',
+  },
+  timeRemainingBadge: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+  },
+  timeRemaining: {
+    color: theme.colors.neutral.white,
+    fontSize: 11,
+    fontWeight: '600',
   },
   snapCaption: {
-    color: '#fff',
+    color: theme.colors.neutral.white,
     fontSize: 16,
-    marginBottom: 8,
+    fontWeight: '500',
+    lineHeight: 22,
   },
   snapFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  timeRemaining: {
-    color: '#ddd',
-    fontSize: 12,
-  },
   interestsTags: {
     flexDirection: 'row',
-    gap: 5,
+    gap: theme.spacing.xs,
+    flex: 1,
   },
   interestTag: {
-    color: '#ddd',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.full,
+  },
+  interestTagText: {
+    color: theme.colors.neutral.white,
     fontSize: 11,
+    fontWeight: '500',
+  },
+  replyButton: {
+    borderRadius: theme.borderRadius.full,
+    overflow: 'hidden',
+  },
+  replyButtonGradient: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  replyButtonText: {
+    fontSize: 16,
   },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 100,
+    paddingVertical: theme.spacing.xxl * 2,
+    gap: theme.spacing.md,
+  },
+  emptyStateIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  emptyStateEmoji: {
+    fontSize: 35,
   },
   emptyStateTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 10,
+    color: theme.colors.neutral.gray[800],
   },
   emptyStateText: {
     fontSize: 16,
-    color: '#666',
+    color: theme.colors.neutral.gray[600],
     textAlign: 'center',
-    marginBottom: 30,
+    maxWidth: 250,
   },
   emptyStateButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 25,
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+    marginTop: theme.spacing.md,
+  },
+  emptyStateButtonGradient: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
   },
   emptyStateButtonText: {
-    color: '#fff',
+    color: theme.colors.neutral.white,
     fontSize: 16,
     fontWeight: '600',
   },
   modalContainer: {
     flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    padding: theme.spacing.md,
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    width: '90%',
+    backgroundColor: theme.colors.neutral.white,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
+    width: '100%',
     maxHeight: '80%',
+    gap: theme.spacing.md,
   },
   modalImage: {
     width: '100%',
     height: 200,
-    borderRadius: 10,
-    marginBottom: 15,
+    borderRadius: theme.borderRadius.lg,
   },
   modalCaption: {
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 5,
     textAlign: 'center',
+    color: theme.colors.neutral.gray[800],
   },
   modalOwner: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.neutral.gray[600],
     textAlign: 'center',
-    marginBottom: 20,
   },
   replyInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 10,
-    padding: 12,
-    minHeight: 60,
+    borderWidth: 2,
+    borderColor: theme.colors.neutral.gray[200],
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    minHeight: 80,
     textAlignVertical: 'top',
-    marginBottom: 15,
+    fontSize: 16,
   },
   suggestReplyButton: {
-    backgroundColor: '#f0f0f0',
-    padding: 12,
-    borderRadius: 8,
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+  },
+  suggestReplyGradient: {
+    padding: theme.spacing.md,
     alignItems: 'center',
-    marginBottom: 20,
   },
   suggestReplyText: {
-    color: '#007AFF',
+    color: theme.colors.neutral.white,
     fontWeight: '600',
+    fontSize: 16,
   },
   modalButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
+    gap: theme.spacing.sm,
   },
   modalButton: {
     flex: 1,
-    padding: 15,
-    borderRadius: 8,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    alignItems: 'center',
+    backgroundColor: theme.colors.neutral.gray[100],
+  },
+  sendButtonContainer: {
+    backgroundColor: 'transparent',
+    padding: 0,
+    overflow: 'hidden',
+  },
+  sendButtonGradient: {
+    width: '100%',
+    padding: theme.spacing.md,
     alignItems: 'center',
   },
-  cancelButton: {
-    backgroundColor: '#f0f0f0',
-  },
   cancelButtonText: {
-    color: '#333',
+    color: theme.colors.neutral.gray[700],
     fontWeight: '600',
-  },
-  sendButton: {
-    backgroundColor: '#007AFF',
-  },
-  sendButtonDisabled: {
-    opacity: 0.6,
+    fontSize: 16,
   },
   sendButtonText: {
-    color: '#fff',
+    color: theme.colors.neutral.white,
     fontWeight: '600',
+    fontSize: 16,
   },
 });

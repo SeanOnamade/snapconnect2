@@ -8,11 +8,16 @@ import {
   Alert,
   ScrollView,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Dimensions
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { theme } from '../theme/colors';
+
+const { width, height } = Dimensions.get('window');
 
 const INTERESTS = [
   'Photography', 'Music', 'Sports', 'Travel', 'Food', 'Art', 'Technology',
@@ -63,168 +68,340 @@ export default function AuthScreen({ navigation }: any) {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <Text style={styles.title}>SnapConnect</Text>
-        <Text style={styles.subtitle}>Share moments that matter</Text>
+          <LinearGradient
+        colors={['#2dd4bf', '#fb923c']}
+        style={styles.container}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+      <KeyboardAvoidingView 
+        style={styles.keyboardContainer} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <LinearGradient
+                colors={['#ffffff', '#ccfbf1']}
+                style={styles.logoCircle}
+              >
+                <Text style={styles.logoEmoji}>📸</Text>
+              </LinearGradient>
+              <Text style={styles.title}>SnapConnect</Text>
+              <Text style={styles.subtitle}>Share moments that disappear ✨</Text>
+            </View>
+          </View>
 
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-          
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-
-          {isSignUp && (
-            <View style={styles.interestsSection}>
-              <Text style={styles.interestsTitle}>Select your interests:</Text>
-              <View style={styles.interestsGrid}>
-                {INTERESTS.map((interest) => (
+          {/* Main Card */}
+          <View style={styles.card}>
+            <LinearGradient
+              colors={['#ffffffF0', '#ffffffE0']}
+              style={styles.cardGradient}
+            >
+              <View style={styles.cardContent}>
+                {/* Toggle Buttons */}
+                <View style={styles.toggleContainer}>
                   <TouchableOpacity
-                    key={interest}
                     style={[
-                      styles.interestTag,
-                      selectedInterests.includes(interest) && styles.selectedInterest
+                      styles.toggleButton,
+                      !isSignUp && styles.toggleButtonActive
                     ]}
-                    onPress={() => toggleInterest(interest)}
+                    onPress={() => setIsSignUp(false)}
                   >
                     <Text style={[
-                      styles.interestText,
-                      selectedInterests.includes(interest) && styles.selectedInterestText
+                      styles.toggleText,
+                      !isSignUp && styles.toggleTextActive
                     ]}>
-                      {interest}
+                      Sign In
                     </Text>
                   </TouchableOpacity>
-                ))}
+                  <TouchableOpacity
+                    style={[
+                      styles.toggleButton,
+                      isSignUp && styles.toggleButtonActive
+                    ]}
+                    onPress={() => setIsSignUp(true)}
+                  >
+                    <Text style={[
+                      styles.toggleText,
+                      isSignUp && styles.toggleTextActive
+                    ]}>
+                      Sign Up
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Form */}
+                <View style={styles.form}>
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Email</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your email"
+                      placeholderTextColor={theme.colors.neutral.gray[400]}
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                  
+                  <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Password</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your password"
+                      placeholderTextColor={theme.colors.neutral.gray[400]}
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry
+                    />
+                  </View>
+
+                  {/* Interests Section */}
+                  {isSignUp && (
+                    <View style={styles.interestsSection}>
+                      <Text style={styles.interestsTitle}>What interests you? 🎯</Text>
+                      <Text style={styles.interestsSubtitle}>
+                        Select topics to personalize your feed
+                      </Text>
+                      <View style={styles.interestsGrid}>
+                        {INTERESTS.map((interest) => (
+                          <TouchableOpacity
+                            key={interest}
+                            style={[
+                              styles.interestTag,
+                              selectedInterests.includes(interest) && styles.selectedInterest
+                            ]}
+                            onPress={() => toggleInterest(interest)}
+                          >
+                            <Text style={[
+                              styles.interestText,
+                              selectedInterests.includes(interest) && styles.selectedInterestText
+                            ]}>
+                              {interest}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Action Button */}
+                  <TouchableOpacity
+                    style={[styles.actionButton, loading && styles.actionButtonDisabled]}
+                    onPress={handleAuth}
+                    disabled={loading}
+                  >
+                    <LinearGradient
+                      colors={loading ? 
+                        ['#94a3b8', '#64748b'] :
+                        ['#2dd4bf', '#0d9488']
+                      }
+                      style={styles.actionButtonGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                    >
+                      <Text style={styles.actionButtonText}>
+                        {loading ? 'Loading...' : (isSignUp ? '🎉 Create Account' : '🚀 Sign In')}
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          )}
+            </LinearGradient>
+          </View>
 
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleAuth}
-            disabled={loading}
-          >
-            <Text style={styles.buttonText}>
-              {loading ? 'Loading...' : (isSignUp ? 'Sign Up' : 'Sign In')}
+          {/* Footer */}
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              Made with ❤️ for sharing special moments
             </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.switchButton}
-            onPress={() => setIsSignUp(!isSignUp)}
-          >
-            <Text style={styles.switchText}>
-              {isSignUp ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+  },
+  keyboardContainer: {
+    flex: 1,
   },
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xl,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: theme.spacing.xl,
+  },
+  logoContainer: {
+    alignItems: 'center',
+  },
+  logoCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+    ...theme.shadows.medium,
+  },
+  logoEmoji: {
+    fontSize: 35,
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 8,
-    color: '#333',
+    color: theme.colors.neutral.white,
+    marginBottom: theme.spacing.xs,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   subtitle: {
     fontSize: 16,
+    color: theme.colors.neutral.white,
+    opacity: 0.9,
     textAlign: 'center',
-    marginBottom: 40,
-    color: '#666',
+    textShadowColor: 'rgba(0,0,0,0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-  form: {
-    width: '100%',
+  card: {
+    borderRadius: theme.borderRadius.xl,
+    ...theme.shadows.large,
+    marginBottom: theme.spacing.lg,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    fontSize: 16,
+  cardGradient: {
+    borderRadius: theme.borderRadius.xl,
+    padding: 2,
   },
-  button: {
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
-    padding: 16,
+  cardContent: {
+    backgroundColor: theme.colors.neutral.white,
+    borderRadius: theme.borderRadius.xl - 2,
+    padding: theme.spacing.lg,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.neutral.gray[100],
+    borderRadius: theme.borderRadius.lg,
+    padding: 4,
+    marginBottom: theme.spacing.lg,
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: theme.spacing.sm,
     alignItems: 'center',
-    marginBottom: 16,
+    borderRadius: theme.borderRadius.md,
   },
-  buttonDisabled: {
-    opacity: 0.6,
+  toggleButtonActive: {
+    backgroundColor: theme.colors.neutral.white,
+    ...theme.shadows.small,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  switchButton: {
-    alignItems: 'center',
-  },
-  switchText: {
-    color: '#007AFF',
-    fontSize: 14,
-  },
-  interestsSection: {
-    marginBottom: 20,
-  },
-  interestsTitle: {
+  toggleText: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 12,
-    color: '#333',
+    color: theme.colors.neutral.gray[600],
+  },
+  toggleTextActive: {
+    color: theme.colors.primary[600],
+  },
+  form: {
+    gap: theme.spacing.md,
+  },
+  inputContainer: {
+    gap: theme.spacing.xs,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.neutral.gray[700],
+    marginLeft: 4,
+  },
+  input: {
+    borderWidth: 2,
+    borderColor: theme.colors.neutral.gray[200],
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    fontSize: 16,
+    backgroundColor: theme.colors.neutral.gray[50],
+  },
+  interestsSection: {
+    marginTop: theme.spacing.md,
+  },
+  interestsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.neutral.gray[800],
+    marginBottom: theme.spacing.xs,
+  },
+  interestsSubtitle: {
+    fontSize: 14,
+    color: theme.colors.neutral.gray[600],
+    marginBottom: theme.spacing.md,
   },
   interestsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: theme.spacing.sm,
   },
   interestTag: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    backgroundColor: '#f9f9f9',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 2,
+    borderColor: theme.colors.neutral.gray[300],
+    backgroundColor: theme.colors.neutral.white,
   },
   selectedInterest: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: theme.colors.secondary[400],
+    borderColor: theme.colors.secondary[400],
   },
   interestText: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.neutral.gray[700],
   },
   selectedInterestText: {
-    color: '#fff',
+    color: theme.colors.neutral.white,
+  },
+  actionButton: {
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+    marginTop: theme.spacing.md,
+    ...theme.shadows.medium,
+  },
+  actionButtonDisabled: {
+    opacity: 0.6,
+  },
+  actionButtonGradient: {
+    paddingVertical: theme.spacing.md,
+    alignItems: 'center',
+  },
+  actionButtonText: {
+    color: theme.colors.neutral.white,
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  footer: {
+    alignItems: 'center',
+    marginTop: theme.spacing.lg,
+  },
+  footerText: {
+    color: theme.colors.neutral.white,
+    fontSize: 14,
+    opacity: 0.8,
+    textAlign: 'center',
   },
 }); 
