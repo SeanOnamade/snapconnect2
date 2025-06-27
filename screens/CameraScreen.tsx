@@ -318,7 +318,12 @@ function CameraScreen({ navigation }: CameraScreenProps) {
       <CameraView style={styles.camera} facing={facing} ref={cameraRef}>
         <View style={styles.buttonContainer}>
           <TouchableOpacity style={styles.flipButton} onPress={toggleCameraFacing}>
-            <Text style={styles.flipText}>🔄</Text>
+            <View style={styles.flipButtonInner}>
+              <View style={styles.flipIcon}>
+                <View style={[styles.flipArrow, styles.flipArrowLeft]} />
+                <View style={[styles.flipArrow, styles.flipArrowRight]} />
+              </View>
+            </View>
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
@@ -329,7 +334,13 @@ function CameraScreen({ navigation }: CameraScreenProps) {
             style={styles.feedButton} 
             onPress={() => navigation.navigate('Feed')}
           >
-            <Text style={styles.feedText}>📱</Text>
+            <View style={styles.feedButtonInner}>
+              <View style={styles.feedIcon}>
+                <View style={styles.feedIconBar1} />
+                <View style={styles.feedIconBar2} />
+                <View style={styles.feedIconBar3} />
+              </View>
+            </View>
           </TouchableOpacity>
         </View>
       </CameraView>
@@ -353,6 +364,7 @@ function CameraScreen({ navigation }: CameraScreenProps) {
             <TextInput
               style={styles.captionInput}
               placeholder="What's happening?"
+              placeholderTextColor="#000"
               value={caption}
               onChangeText={setCaption}
               multiline
@@ -495,6 +507,70 @@ const styles = StyleSheet.create({
   },
   feedText: {
     fontSize: 20,
+  },
+  // Modern button styles
+  flipButtonInner: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  flipIcon: {
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  flipArrow: {
+    position: 'absolute',
+    width: 8,
+    height: 2,
+    backgroundColor: '#000',
+  },
+  flipArrowLeft: {
+    transform: [{ rotate: '135deg' }],
+    left: 2,
+  },
+  flipArrowRight: {
+    transform: [{ rotate: '-45deg' }],
+    right: 2,
+  },
+  feedButtonInner: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  feedIcon: {
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  feedIconBar1: {
+    position: 'absolute',
+    width: 12,
+    height: 2,
+    backgroundColor: '#000',
+    top: 6,
+  },
+  feedIconBar2: {
+    position: 'absolute',
+    width: 8,
+    height: 2,
+    backgroundColor: '#000',
+    top: 10,
+  },
+  feedIconBar3: {
+    position: 'absolute',
+    width: 4,
+    height: 2,
+    backgroundColor: '#000',
+    top: 14,
   },
   message: {
     textAlign: 'center',

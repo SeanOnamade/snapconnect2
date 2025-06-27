@@ -47,12 +47,21 @@ export default function FeedScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedSnap, setSelectedSnap] = useState<Snap | null>(null);
   const [showReplyModal, setShowReplyModal] = useState(false);
+  const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+  const [unsubscribeSnaps, setUnsubscribeSnaps] = useState<(() => void) | null>(null);
   const { snaps, setSnaps, userData, logout } = useStore();
 
   useEffect(() => {
-    loadSnaps();
+    const unsubscribe = loadSnaps();
+    setUnsubscribeSnaps(() => unsubscribe);
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   const loadSnaps = () => {
@@ -149,9 +158,15 @@ export default function FeedScreen({ navigation }: any) {
 
   const handleLogout = async () => {
     try {
+      // Clean up Firestore listeners first to prevent permission errors
+      if (unsubscribeSnaps) {
+        unsubscribeSnaps();
+        setUnsubscribeSnaps(null);
+      }
+      
       await signOut(auth);
       logout();
-      navigation.replace('Auth');
+      // No need for manual navigation - App.tsx handles this automatically via auth state
     } catch (error) {
       Alert.alert('Error', 'Failed to logout');
     }
@@ -272,7 +287,10 @@ export default function FeedScreen({ navigation }: any) {
                 <Text style={styles.headerButtonText}>📷</Text>
               </LinearGradient>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.headerButton} onPress={handleLogout}>
+            <TouchableOpacity 
+              style={styles.headerButton} 
+              onPress={() => setShowSettingsDropdown(!showSettingsDropdown)}
+            >
               <View style={styles.headerButtonSecondary}>
                 <Text style={styles.headerButtonTextSecondary}>⚙️</Text>
               </View>
@@ -395,6 +413,49 @@ export default function FeedScreen({ navigation }: any) {
           </LinearGradient>
         </View>
       </Modal>
+
+      {/* Settings Dropdown */}
+      {showSettingsDropdown && (
+        <Modal
+          visible={showSettingsDropdown}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={() => setShowSettingsDropdown(false)}
+        >
+          <TouchableOpacity 
+            style={styles.dropdownOverlay}
+            activeOpacity={1}
+            onPress={() => setShowSettingsDropdown(false)}
+          >
+            <View style={styles.dropdownContainer}>
+              <View style={styles.dropdownContent}>
+                <TouchableOpacity 
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setShowSettingsDropdown(false);
+                    Alert.alert('Settings', 'Settings feature coming soon!');
+                  }}
+                >
+                  <Text style={styles.dropdownItemText}>⚙️ Settings</Text>
+                  <Text style={styles.dropdownItemSubtext}>Coming soon</Text>
+                </TouchableOpacity>
+                
+                <View style={styles.dropdownDivider} />
+                
+                <TouchableOpacity 
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setShowSettingsDropdown(false);
+                    handleLogout();
+                  }}
+                >
+                  <Text style={[styles.dropdownItemText, styles.logoutText]}>🚪 Log Out</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
@@ -698,5 +759,47 @@ const styles = StyleSheet.create({
     color: theme.colors.neutral.white,
     fontWeight: '600',
     fontSize: 16,
+  },
+  // Dropdown styles
+  dropdownOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingTop: 100,
+    paddingRight: theme.spacing.md,
+  },
+  dropdownContainer: {
+    backgroundColor: 'transparent',
+  },
+  dropdownContent: {
+    backgroundColor: theme.colors.neutral.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.xs,
+    minWidth: 180,
+    ...theme.shadows.large,
+  },
+  dropdownItem: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+  },
+  dropdownItemText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: theme.colors.neutral.gray[800],
+  },
+  dropdownItemSubtext: {
+    fontSize: 12,
+    color: theme.colors.neutral.gray[500],
+    marginTop: 2,
+  },
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: theme.colors.neutral.gray[200],
+    marginVertical: theme.spacing.xs,
+  },
+  logoutText: {
+    color: '#ef4444',
   },
 });
