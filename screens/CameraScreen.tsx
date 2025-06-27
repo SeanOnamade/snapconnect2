@@ -13,37 +13,111 @@ import {
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { collection, addDoc, Timestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, Timestamp } from 'firebase/firestore';
 import { storage, db, auth } from '../lib/firebase';
 import { useStore } from '../store/useStore';
 
-export default function CameraScreen({ navigation }: any) {
+interface CameraScreenProps {
+  navigation: any;
+}
+
+function CameraScreen({ navigation }: CameraScreenProps) {
   const [facing, setFacing] = useState<CameraType>('back');
   const [permission, requestPermission] = useCameraPermissions();
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [showCaptionModal, setShowCaptionModal] = useState(false);
   const [caption, setCaption] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [permissionLoading, setPermissionLoading] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const { userData, addSnap } = useStore();
 
-  useEffect(() => {
-    if (!permission?.granted) {
-      requestPermission();
+  const handlePermissionRequest = async () => {
+    try {
+      setPermissionLoading(true);
+      console.log('Requesting camera permission...');
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const result = await requestPermission();
+      console.log('Permission result:', result);
+      
+      if (!result.granted) {
+        if (Platform.OS === 'web') {
+          Alert.alert(
+            'Camera Permission Required',
+            'Please click "Allow" when your browser asks for camera access.',
+            [
+              { text: 'Try Again', onPress: handlePermissionRequest },
+              { text: 'Go to Feed', onPress: () => navigation.navigate('Feed') }
+            ]
+          );
+        } else {
+          Alert.alert(
+            'Camera Permission Required',
+            'Please allow camera access in your device settings to take photos.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Go to Feed', onPress: () => navigation.navigate('Feed') }
+            ]
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Permission request error:', error);
+      Alert.alert(
+        'Permission Error',
+        'Camera access failed. Try refreshing the page or using a different browser.',
+        [
+          { text: 'Refresh', onPress: () => {
+            if (typeof window !== 'undefined' && window.location?.reload) {
+              window.location.reload();
+            } else {
+              navigation.navigate('Feed');
+            }
+          }},
+          { text: 'Go to Feed', onPress: () => navigation.navigate('Feed') }
+        ]
+      );
+    } finally {
+      setPermissionLoading(false);
     }
-  }, [permission]);
+  };
 
   if (!permission) {
-    return <View />;
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.message}>Loading camera...</Text>
+        </View>
+      </View>
+    );
   }
 
   if (!permission.granted) {
     return (
       <View style={styles.container}>
-        <Text style={styles.message}>We need your permission to show the camera</Text>
-        <TouchableOpacity onPress={requestPermission} style={styles.button}>
-          <Text style={styles.buttonText}>Grant Permission</Text>
-        </TouchableOpacity>
+        <View style={styles.permissionContainer}>
+          <Text style={styles.permissionTitle}>📷 Camera Access Needed</Text>
+          <Text style={styles.message}>
+            SnapConnect needs camera access to let you take and share photos.
+          </Text>
+          <TouchableOpacity 
+            onPress={handlePermissionRequest} 
+            style={[styles.button, permissionLoading && styles.buttonDisabled]}
+            disabled={permissionLoading}
+          >
+            <Text style={styles.buttonText}>
+              {permissionLoading ? 'Requesting...' : 'Grant Camera Permission'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => navigation.navigate('Feed')} 
+            style={styles.skipButton}
+          >
+            <Text style={styles.skipButtonText}>Skip for now</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -51,57 +125,45 @@ export default function CameraScreen({ navigation }: any) {
   const takePicture = async () => {
     if (cameraRef.current) {
       try {
+        console.log('Taking picture...');
         const photo = await cameraRef.current.takePictureAsync({
           quality: 0.8,
           base64: false,
         });
+        console.log('Picture taken:', photo);
         setCapturedImage(photo.uri);
         setShowCaptionModal(true);
       } catch (error) {
-        Alert.alert('Error', 'Failed to take picture');
+        console.error('Take picture error:', error);
+        Alert.alert('Error', 'Failed to take picture. Please try again.');
       }
     }
   };
 
   const uploadSnap = async () => {
-    if (!capturedImage || !auth.currentUser || !userData) return;
+    if (!capturedImage || !auth?.currentUser || !userData) return;
 
     setUploading(true);
     try {
-      // Temporary workaround while waiting for Firebase Storage billing
-      // Comment out the storage upload and just save metadata for now
-      
-      // TODO: Uncomment when Firebase Storage is available
-      /*
-      // Upload image to Firebase Storage
-      const response = await fetch(capturedImage);
-      const blob = await response.blob();
-      const fileRef = ref(storage, `snaps/${auth.currentUser.uid}/${Date.now()}.jpg`);
-      await uploadBytes(fileRef, blob);
-      const url = await getDownloadURL(fileRef);
-      */
-      
-      // Temporary: use a placeholder URL or local image
-      const url = capturedImage; // Use local image for now
+      // Temporary: use local image for demo
+      const url = capturedImage;
       
       Alert.alert(
         'Info', 
         'Storage not available yet. This is a demo save - images will only show locally until Firebase Storage is set up.'
       );
 
-      // Save snap data to Firestore
       const snapData = {
         url,
         caption,
         owner: auth.currentUser.uid,
         interests: userData.interests,
-        expiresAt: Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+        expiresAt: Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000),
         createdAt: Timestamp.now(),
       };
 
       const docRef = await addDoc(collection(db, 'snaps'), snapData);
       
-      // Add to local state
       addSnap({
         id: docRef.id,
         ...snapData,
@@ -109,7 +171,7 @@ export default function CameraScreen({ navigation }: any) {
         createdAt: new Date(),
       });
 
-      Alert.alert('Success', 'Snap uploaded successfully! (Demo mode - upgrade Firebase Storage for full functionality)');
+      Alert.alert('Success', 'Snap uploaded successfully! (Demo mode)');
       setShowCaptionModal(false);
       setCapturedImage(null);
       setCaption('');
@@ -127,7 +189,6 @@ export default function CameraScreen({ navigation }: any) {
   };
 
   const suggestCaption = async () => {
-    // Placeholder for AI caption suggestion
     const suggestions = [
       "Living my best life! 📸",
       "Moments like these ✨",
@@ -160,7 +221,6 @@ export default function CameraScreen({ navigation }: any) {
         </View>
       </CameraView>
 
-      {/* Caption Modal */}
       <Modal
         visible={showCaptionModal}
         animationType="slide"
@@ -293,6 +353,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   modalContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -366,4 +429,32 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
   },
-}); 
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  permissionContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  permissionTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  skipButton: {
+    backgroundColor: '#f0f0f0',
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  skipButtonText: {
+    color: '#333',
+    fontWeight: '600',
+  },
+});
+
+export default CameraScreen; 
