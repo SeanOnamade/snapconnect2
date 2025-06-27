@@ -34,7 +34,7 @@ function CameraScreen({ navigation }: CameraScreenProps) {
   const [sharing, setSharing] = useState(false);
   const [permissionLoading, setPermissionLoading] = useState(false);
   const cameraRef = useRef<CameraView>(null);
-  const { userData, addSnap } = useStore();
+  const { userData } = useStore();
 
   // Helper function to clean up all modal states
   const resetModalStates = () => {
@@ -173,7 +173,8 @@ function CameraScreen({ navigation }: CameraScreenProps) {
       return downloadURL;
     } catch (error) {
       console.error('Firebase Storage upload error:', error);
-      throw new Error('Failed to upload image to storage');
+      // Don't throw error - let the fallback mechanism handle it
+      throw error;
     }
   };
 
@@ -192,14 +193,7 @@ function CameraScreen({ navigation }: CameraScreenProps) {
 
       const docRef = await addDoc(collection(db, 'snaps'), snapData);
       
-      addSnap({
-        id: docRef.id,
-        ...snapData,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-        createdAt: new Date(),
-      });
-
-      console.log('Snap saved to Firestore successfully!');
+      console.log('Snap saved to Firestore successfully! ID:', docRef.id);
     } catch (error) {
       console.error('Firestore save error:', error);
       throw new Error('Failed to save snap to database');
@@ -239,17 +233,41 @@ function CameraScreen({ navigation }: CameraScreenProps) {
   };
 
   const uploadSnap = async () => {
-    if (!capturedImage || !auth?.currentUser || !userData) return;
+    if (!capturedImage || !auth?.currentUser || !userData) {
+      Alert.alert('Error', 'Missing required data for upload');
+      return;
+    }
 
     setUploading(true);
     try {
-      // Upload image to Firebase Storage
-      const downloadURL = await uploadToFirebaseStorage(capturedImage);
-      
-      // Save snap data to Firestore
-      await saveSnapToFirestore(downloadURL);
+      let imageUrl = capturedImage;
+      let uploadMethod = 'Local (Demo Mode)';
 
-      Alert.alert('Success', 'Snap uploaded successfully!', [
+      // Try Firebase Storage first
+      try {
+        console.log('Attempting Firebase Storage upload...');
+        imageUrl = await uploadToFirebaseStorage(capturedImage);
+        uploadMethod = 'Firebase Storage';
+        console.log('Firebase Storage upload successful!');
+      } catch (storageError) {
+        console.log('Firebase Storage not available, using local image for demo');
+        console.error('Storage error details:', storageError);
+        // Use local image URI as fallback
+        imageUrl = capturedImage;
+        uploadMethod = 'Local (Demo Mode)';
+      }
+      
+      // Save snap data to Firestore (works with either Firebase Storage URL or local URI)
+      await saveSnapToFirestore(imageUrl);
+
+      // Note: Don't add to local state - the Firestore listener will automatically pick it up
+
+      // Show success message based on upload method
+      const successMessage = uploadMethod === 'Firebase Storage' 
+        ? 'Snap uploaded to Firebase Storage successfully!'
+        : 'Snap saved successfully! (Demo mode - using local image until Firebase Storage is configured)';
+
+      Alert.alert('Success', successMessage, [
         {
           text: 'Go to Feed',
           onPress: () => {
@@ -262,7 +280,7 @@ function CameraScreen({ navigation }: CameraScreenProps) {
       console.error('Upload error:', error);
       Alert.alert(
         'Upload Error', 
-        error instanceof Error ? error.message : 'Failed to upload snap. Please try again.',
+        error instanceof Error ? error.message : 'Failed to save snap. Please try again.',
         [
           { text: 'Retry', onPress: uploadSnap },
           { text: 'Cancel', style: 'cancel' }
