@@ -24,9 +24,11 @@ import {
   addDoc,
   doc,
   getDoc,
+  deleteDoc,
 } from 'firebase/firestore';
+import { ref, deleteObject } from 'firebase/storage';
 import { signOut } from 'firebase/auth';
-import { db, auth } from '../lib/firebase';
+import { db, auth, storage } from '../lib/firebase';
 import { useStore } from '../store/useStore';
 import { theme } from '../theme/colors';
 
@@ -50,6 +52,7 @@ export default function FeedScreen({ navigation }: any) {
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+  const [deletingSnap, setDeletingSnap] = useState<string | null>(null);
   const [unsubscribeSnaps, setUnsubscribeSnaps] = useState<(() => void) | null>(null);
   const { snaps, setSnaps, userData, logout } = useStore();
 
@@ -156,6 +159,61 @@ export default function FeedScreen({ navigation }: any) {
     }
   };
 
+  const confirmDeleteSnap = (snap: Snap) => {
+    Alert.alert(
+      'Delete Snap',
+      'Are you sure you want to delete this snap? This action cannot be undone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => deleteSnap(snap),
+        },
+      ]
+    );
+  };
+
+  const deleteSnap = async (snap: Snap) => {
+    if (!auth.currentUser || snap.owner !== auth.currentUser.uid) {
+      Alert.alert('Error', 'You can only delete your own snaps');
+      return;
+    }
+
+    setDeletingSnap(snap.id);
+    try {
+      // Delete from Firestore
+      await deleteDoc(doc(db, 'snaps', snap.id));
+
+      // Delete from Firebase Storage if it's a Firebase Storage URL
+      if (snap.url.includes('firebasestorage.googleapis.com')) {
+        try {
+          // Extract the file path from the URL
+          const urlParts = snap.url.split('/o/')[1];
+          if (urlParts) {
+            const filePath = decodeURIComponent(urlParts.split('?')[0]);
+            const storageRef = ref(storage, filePath);
+            await deleteObject(storageRef);
+            console.log('Image deleted from Firebase Storage');
+          }
+        } catch (storageError) {
+          console.log('Could not delete from storage, but Firestore deletion succeeded:', storageError);
+          // Continue - Firestore deletion succeeded, storage deletion is optional
+        }
+      }
+
+      Alert.alert('Success', 'Snap deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting snap:', error);
+      Alert.alert('Error', 'Failed to delete snap. Please try again.');
+    } finally {
+      setDeletingSnap(null);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       // Clean up Firestore listeners first to prevent permission errors
@@ -228,13 +286,35 @@ export default function FeedScreen({ navigation }: any) {
                   <Text style={styles.timeAgo}>{getTimeAgo(item.createdAt)}</Text>
                 </View>
               </View>
-              <View style={styles.timeRemainingContainer}>
-                <LinearGradient
-                  colors={['#fb923c', '#f97316']}
-                  style={styles.timeRemainingBadge}
-                >
-                  <Text style={styles.timeRemaining}>⏰ {getTimeRemaining(item.expiresAt)}</Text>
-                </LinearGradient>
+              <View style={styles.snapHeaderRight}>
+                <View style={styles.timeRemainingContainer}>
+                  <LinearGradient
+                    colors={['#fb923c', '#f97316']}
+                    style={styles.timeRemainingBadge}
+                  >
+                    <Text style={styles.timeRemaining}>⏰ {getTimeRemaining(item.expiresAt)}</Text>
+                  </LinearGradient>
+                </View>
+                {/* Delete button - only show for own snaps */}
+                {auth.currentUser && item.owner === auth.currentUser.uid && (
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={(e) => {
+                      e.stopPropagation(); // Prevent snap modal from opening
+                      confirmDeleteSnap(item);
+                    }}
+                    disabled={deletingSnap === item.id}
+                  >
+                    <LinearGradient
+                      colors={deletingSnap === item.id ? ['#9ca3af', '#6b7280'] : ['#ef4444', '#dc2626']}
+                      style={styles.deleteButtonGradient}
+                    >
+                      <Text style={styles.deleteButtonText}>
+                        {deletingSnap === item.id ? '⏳' : '🗑️'}
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
             
@@ -358,27 +438,32 @@ export default function FeedScreen({ navigation }: any) {
                   <Text style={styles.modalCaption}>{selectedSnap.caption}</Text>
                   <Text style={styles.modalOwner}>by {selectedSnap.ownerEmail}</Text>
                   
-                  <TextInput
-                    style={styles.replyInput}
-                    placeholder="Send a quick reply..."
-                    placeholderTextColor={theme.colors.neutral.gray[400]}
-                    value={replyText}
-                    onChangeText={setReplyText}
-                    multiline
-                    maxLength={100}
-                  />
-                  
-                  <TouchableOpacity
-                    style={styles.suggestReplyButton}
-                    onPress={generateQuickReply}
-                  >
-                    <LinearGradient
-                      colors={['#fb923c', '#f97316']}
-                      style={styles.suggestReplyGradient}
-                    >
-                      <Text style={styles.suggestReplyText}>✨ Quick Reply</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
+                  {/* Only show reply input for other people's snaps */}
+                  {!(auth.currentUser && selectedSnap.owner === auth.currentUser.uid) && (
+                    <>
+                      <TextInput
+                        style={styles.replyInput}
+                        placeholder="Send a quick reply..."
+                        placeholderTextColor={theme.colors.neutral.gray[400]}
+                        value={replyText}
+                        onChangeText={setReplyText}
+                        multiline
+                        maxLength={100}
+                      />
+                      
+                      <TouchableOpacity
+                        style={styles.suggestReplyButton}
+                        onPress={generateQuickReply}
+                      >
+                        <LinearGradient
+                          colors={['#fb923c', '#f97316']}
+                          style={styles.suggestReplyGradient}
+                        >
+                          <Text style={styles.suggestReplyText}>✨ Quick Reply</Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    </>
+                  )}
                   
                   <View style={styles.modalButtons}>
                     <TouchableOpacity
@@ -392,20 +477,43 @@ export default function FeedScreen({ navigation }: any) {
                       <Text style={styles.cancelButtonText}>Cancel</Text>
                     </TouchableOpacity>
                     
-                    <TouchableOpacity
-                      style={[styles.modalButton, styles.sendButtonContainer]}
-                      onPress={sendReply}
-                      disabled={sendingReply || !replyText.trim()}
-                    >
-                      <LinearGradient
-                        colors={['#2dd4bf', '#14b8a6']}
-                        style={styles.sendButtonGradient}
+                    {/* Show delete button for own snaps, send button for others */}
+                    {auth.currentUser && selectedSnap && selectedSnap.owner === auth.currentUser.uid ? (
+                      <TouchableOpacity
+                        style={[styles.modalButton, styles.sendButtonContainer]}
+                        onPress={() => {
+                          setShowReplyModal(false);
+                          setReplyText('');
+                          setSelectedSnap(null);
+                          confirmDeleteSnap(selectedSnap);
+                        }}
+                        disabled={deletingSnap === selectedSnap.id}
                       >
-                        <Text style={styles.sendButtonText}>
-                          {sendingReply ? 'Sending...' : 'Send'}
-                        </Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
+                        <LinearGradient
+                          colors={deletingSnap === selectedSnap.id ? ['#9ca3af', '#6b7280'] : ['#ef4444', '#dc2626']}
+                          style={styles.sendButtonGradient}
+                        >
+                          <Text style={styles.sendButtonText}>
+                            {deletingSnap === selectedSnap.id ? 'Deleting...' : '🗑️ Delete'}
+                          </Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={[styles.modalButton, styles.sendButtonContainer]}
+                        onPress={sendReply}
+                        disabled={sendingReply || !replyText.trim()}
+                      >
+                        <LinearGradient
+                          colors={['#2dd4bf', '#14b8a6']}
+                          style={styles.sendButtonGradient}
+                        >
+                          <Text style={styles.sendButtonText}>
+                            {sendingReply ? 'Sending...' : 'Send'}
+                          </Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </>
               )}
@@ -801,5 +909,24 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     color: '#ef4444',
+  },
+  // Delete snap styles
+  snapHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  deleteButton: {
+    borderRadius: theme.borderRadius.full,
+    overflow: 'hidden',
+  },
+  deleteButtonGradient: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    fontSize: 14,
   },
 });
