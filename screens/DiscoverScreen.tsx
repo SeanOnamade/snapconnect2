@@ -1,14 +1,13 @@
-import { useState, useEffect } from "react";
-import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet, SafeAreaView, TouchableOpacity, Modal, Alert } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet, SafeAreaView, TouchableOpacity, Modal, Alert, TextInput } from "react-native";
 import { collection, query, where, orderBy, Timestamp, onSnapshot, getDocs } from "firebase/firestore";
 import { LinearGradient } from 'expo-linear-gradient';
 import { signOut } from 'firebase/auth';
+import { uniq } from "lodash";
 import { auth, db } from "../lib/firebase";
 import FeedCard from "../components/FeedCard";
 import { theme } from '../theme/colors';
 import { useStore } from '../store/useStore';
-
-const TAGS = ["music","study","sports","tech","movies","food"];
 
 interface Snap {
   id: string;
@@ -22,11 +21,30 @@ interface Snap {
 }
 
 export default function DiscoverScreen({ navigation }: any) {
-  const [selected, setSelected] = useState<string>("music");
+  const [selected, setSelected] = useState<string>("");
+  const [allTags, setAllTags] = useState<string[]>([]);
+  const [search, setSearch] = useState<string>("");
   const [snaps, setSnaps] = useState<Snap[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
   const { logout } = useStore();
+
+  // Fetch distinct tags from all snaps
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, "snaps"),
+      snap => {
+        const everyTag = snap.docs.flatMap(d => (d.data().interests ?? []));
+        setAllTags(uniq(everyTag).sort());  // alphabetical
+      }
+    );
+    return () => unsub();
+  }, []);
+
+  // Set initial selected tag to first available tag
+  useEffect(() => {
+    if (!selected && allTags.length) setSelected(allTags[0]);
+  }, [allTags]);
 
   useEffect(() => {
     const fetchSnaps = async () => {
@@ -44,10 +62,15 @@ export default function DiscoverScreen({ navigation }: any) {
           ...doc.data()
         } as Snap));
         
-        // Filter by selected interest client-side
-        const filteredSnaps = allSnaps.filter(snap => 
-          snap.interests && snap.interests.includes(selected)
-        );
+        // Filter by selected interest client-side (case-insensitive)
+        const filteredSnaps = allSnaps.filter(snap => {
+          if (!snap.interests || !selected) return false;
+          
+          // Case-insensitive search that checks if any interest contains the selected term
+          return snap.interests.some(interest => 
+            interest.toLowerCase().includes(selected.toLowerCase())
+          );
+        });
         
         // Sort locally by expiresAt descending
         filteredSnaps.sort((a, b) => {
@@ -106,25 +129,48 @@ export default function DiscoverScreen({ navigation }: any) {
       {/* Content */}
       <FlatList
         ListHeaderComponent={
-          <View style={styles.chipRow}>
-            {TAGS.map(tag => (
-              <Pressable
-                key={tag}
-                onPress={()=>setSelected(tag)}
-                style={[
-                  styles.chip,
-                  selected===tag && styles.chipSelected
-                ]}>
-                <Text style={selected===tag?styles.chipTextSel:styles.chipText}>
-                  #{tag}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          <>
+            <View style={{padding:12}}>
+              <TextInput
+                placeholder="Search tags…"
+                value={search}
+                onChangeText={setSearch}
+                onSubmitEditing={() => {
+                  if (search.trim()) {
+                    const searchTerm = search.trim().toLowerCase();
+                    // Try to find exact match first, then partial match
+                    const exactMatch = allTags.find(tag => tag.toLowerCase() === searchTerm);
+                    const partialMatch = allTags.find(tag => tag.toLowerCase().includes(searchTerm));
+                    
+                    setSelected(exactMatch || partialMatch || searchTerm);
+                    setSearch("");
+                  }
+                }}
+                style={styles.searchBox}
+                returnKeyType="search"
+              />
+            </View>
+
+            <View style={styles.chipRow}>
+              {allTags.map(tag => (
+                <Pressable
+                  key={tag}
+                  onPress={() => setSelected(tag)}
+                  style={[
+                    styles.chip,
+                    selected === tag && styles.chipSelected
+                  ]}>
+                  <Text style={selected === tag ? styles.chipTextSel : styles.chipText}>
+                    #{tag}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </>
         }
         data={snaps}
         keyExtractor={item => item.id}
-        renderItem={({item})=> <FeedCard snap={item} />}
+        renderItem={({item}) => <FeedCard snap={item} />}
         ListEmptyComponent={
           loading
           ? <ActivityIndicator size="large" style={{marginTop:40}} />
@@ -306,5 +352,14 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     color: '#ef4444',
+  },
+  searchBox: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 16,
+    marginBottom: 8
   },
 }); 

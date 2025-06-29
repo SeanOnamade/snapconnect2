@@ -648,6 +648,14 @@ function CameraScreen({ navigation }: CameraScreenProps) {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <View style={styles.modalContent}>
+            {/* X Button - Top Right */}
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={resetModalStates}
+            >
+              <Text style={styles.closeButtonText}>✕</Text>
+            </TouchableOpacity>
+
             {capturedImage && (
               <Image source={{ uri: capturedImage }} style={styles.previewImage} />
             )}
@@ -1267,6 +1275,25 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 10,
     textDecorationLine: 'underline',
+  },
+  // Close button styles
+  closeButton: {
+    position: 'absolute',
+    top: 15,
+    right: 15,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    lineHeight: 16,
   },
 });
 

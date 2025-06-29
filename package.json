@@ -26,6 +26,7 @@
     "expo-sharing": "~13.1.5",
     "expo-status-bar": "~2.2.3",
     "firebase": "^9.23.0",
+    "lodash": "^4.17.21",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.79.4",
@@ -37,6 +38,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@types/lodash": "^4.17.19",
     "@types/react": "~19.0.10",
     "typescript": "~5.8.3"
   },

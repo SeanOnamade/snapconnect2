@@ -26,9 +26,13 @@ interface FeedCardProps {
 }
 
 export default function FeedCard({ snap, onPress }: FeedCardProps) {
-  const getTimeAgo = (date: Date) => {
+  const getTimeAgo = (date: any) => {
     const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
+    // Convert Firestore Timestamp to Date if needed
+    const dateObj = date?.toDate ? date.toDate() : date;
+    if (!dateObj) return 'Unknown';
+    
+    const diffMs = now.getTime() - dateObj.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
 
@@ -41,9 +45,13 @@ export default function FeedCard({ snap, onPress }: FeedCardProps) {
     }
   };
 
-  const getTimeRemaining = (expiresAt: Date) => {
+  const getTimeRemaining = (expiresAt: any) => {
     const now = new Date();
-    const diffMs = expiresAt.getTime() - now.getTime();
+    // Convert Firestore Timestamp to Date if needed
+    const dateObj = expiresAt?.toDate ? expiresAt.toDate() : expiresAt;
+    if (!dateObj) return 'Unknown';
+    
+    const diffMs = dateObj.getTime() - now.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
 
