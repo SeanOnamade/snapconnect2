@@ -23,8 +23,36 @@ SnapConnect is a GauntletAI project that re-imagines Snapchat for **college crea
 
 ## Primary User & Niche
 
-**User Type:** Social Connectors  
-**Niche:** College students sharing campus life, creative projects, and goal progress.
+Sure — here’s the complete section with your **expanded niche** and the **6 RAG-focused user stories**, formatted for your README:
+
+---
+
+### 📌 Primary User & Niche
+
+**User Type:** Social Connectors
+**Niche:** *College creatives who document progress on projects and personal goals.*
+
+These are students who treat social media as a shared studio journal: they post work-in-progress art, music riffs, coding side-projects, hackathon builds, fitness milestones, and study breakthroughs. They crave:
+
+* ✏️ Quick, low-friction ways to share updates
+* 💡 Playful AI prompts that spark new content ideas
+* 🤝 A campus-sized community that holds them accountable and celebrates small wins
+
+---
+
+### ✅ RAG-Driven User Stories
+
+1. **"As a student, I want AI to generate a caption for my photo based on what it looks like and any tags I add, so posting updates is fast and fun."**
+
+2. **"As a student, I want AI to automatically generate relevant tags when I upload a post, so others with similar interests can discover it easily."**
+
+3. **"As a student, I want to quickly reply to a friend’s Snap with a fun reaction or follow-up, so our connections feel lightweight but meaningful."**
+
+4. **"As a student, I want to explore content based on my selected interests, so I can find people who care about the same things I do."**
+
+5. **"As a student, I want an 'Inspire Me' prompt powered by AI when I go to post, so I never run out of ideas to share with the community."**
+
+6. **"As a student, I want to edit my favorite interests and see them highlighted on the Discover feed, so the app reflects what I care about most right now."**
 
 ---
 
