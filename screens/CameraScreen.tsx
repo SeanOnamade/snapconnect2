@@ -652,15 +652,7 @@ function CameraScreen({ navigation }: CameraScreenProps) {
           {/* Filter Overlay */}
           {renderFilterOverlay()}
           
-          {/* Top Filter Button */}
-          <TouchableOpacity 
-            style={styles.filterButton} 
-            onPress={() => setShowFilters(!showFilters)}
-          >
-            <Text style={styles.filterButtonText}>
-              {FILTERS.find(f => f.id === selectedFilter)?.emoji || '📷'}
-            </Text>
-          </TouchableOpacity>
+
           
           {/* Filter Selection Panel */}
           {showFilters && (
@@ -691,9 +683,11 @@ function CameraScreen({ navigation }: CameraScreenProps) {
           <View style={styles.buttonContainer}>
             <TouchableOpacity style={styles.flipButton} onPress={toggleCameraFacing}>
               <View style={styles.flipButtonInner}>
-                <View style={styles.flipIcon}>
-                  <View style={[styles.flipArrow, styles.flipArrowLeft]} />
-                  <View style={[styles.flipArrow, styles.flipArrowRight]} />
+                <View style={styles.swapIcon}>
+                  <View style={styles.swapCircle1} />
+                  <View style={styles.swapCircle2} />
+                  <View style={styles.swapArrow1} />
+                  <View style={styles.swapArrow2} />
                 </View>
               </View>
             </TouchableOpacity>
@@ -703,15 +697,13 @@ function CameraScreen({ navigation }: CameraScreenProps) {
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={styles.feedButton} 
-              onPress={() => navigation.navigate('Feed')}
+              style={styles.filterButtonBottom} 
+              onPress={() => setShowFilters(!showFilters)}
             >
-              <View style={styles.feedButtonInner}>
-                <View style={styles.feedIcon}>
-                  <View style={styles.feedIconBar1} />
-                  <View style={styles.feedIconBar2} />
-                  <View style={styles.feedIconBar3} />
-                </View>
+              <View style={styles.filterButtonInner}>
+                <Text style={styles.filterButtonBottomText}>
+                  {FILTERS.find(f => f.id === selectedFilter)?.emoji || '📷'}
+                </Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -1047,17 +1039,7 @@ const styles = StyleSheet.create({
   flipText: {
     fontSize: 20,
   },
-  feedButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  feedText: {
-    fontSize: 20,
-  },
+
   // Modern button styles
   flipButtonInner: {
     width: 30,
@@ -1067,27 +1049,67 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  flipIcon: {
+  swapIcon: {
     width: 20,
     height: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  flipArrow: {
+  swapCircle1: {
     position: 'absolute',
     width: 8,
-    height: 2,
-    backgroundColor: '#000',
-  },
-  flipArrowLeft: {
-    transform: [{ rotate: '135deg' }],
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: '#000',
+    top: 2,
     left: 2,
   },
-  flipArrowRight: {
-    transform: [{ rotate: '-45deg' }],
+  swapCircle2: {
+    position: 'absolute',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: '#000',
+    bottom: 2,
     right: 2,
   },
-  feedButtonInner: {
+  swapArrow1: {
+    position: 'absolute',
+    width: 0,
+    height: 0,
+    borderLeftWidth: 3,
+    borderRightWidth: 3,
+    borderBottomWidth: 4,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#000',
+    top: 1,
+    right: 1,
+  },
+  swapArrow2: {
+    position: 'absolute',
+    width: 0,
+    height: 0,
+    borderLeftWidth: 3,
+    borderRightWidth: 3,
+    borderTopWidth: 4,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#000',
+    bottom: 1,
+    left: 1,
+  },
+  filterButtonBottom: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterButtonInner: {
     width: 30,
     height: 30,
     borderRadius: 15,
@@ -1095,32 +1117,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  feedIcon: {
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  feedIconBar1: {
-    position: 'absolute',
-    width: 12,
-    height: 2,
-    backgroundColor: '#000',
-    top: 6,
-  },
-  feedIconBar2: {
-    position: 'absolute',
-    width: 8,
-    height: 2,
-    backgroundColor: '#000',
-    top: 10,
-  },
-  feedIconBar3: {
-    position: 'absolute',
-    width: 4,
-    height: 2,
-    backgroundColor: '#000',
-    top: 14,
+  filterButtonBottomText: {
+    fontSize: 16,
   },
   message: {
     textAlign: 'center',
