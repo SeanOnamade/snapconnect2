@@ -135,8 +135,25 @@ export const generateCaption = onCall(
 
       // Parse AI response
       let suggestions: CaptionSuggestion[];
+      // Clean the content - remove markdown code blocks and fix common typos
+      let cleanContent = content.trim();
+
+      // Remove markdown code blocks if present
+      if (cleanContent.startsWith("```json")) {
+        cleanContent = cleanContent.replace(/^```json\s*/, "")
+          .replace(/\s*```$/, "");
+      } else if (cleanContent.startsWith("```")) {
+        cleanContent = cleanContent.replace(/^```\s*/, "")
+          .replace(/\s*```$/, "");
+      }
+
+      // Fix common OpenAI typos
+      cleanContent = cleanContent.replace(/"leength":/g, "\"length\":");
+
+      logger.info("Cleaned OpenAI response", {cleanContent});
+
       try {
-        suggestions = JSON.parse(content);
+        suggestions = JSON.parse(cleanContent);
 
         // Validate structure
         if (!Array.isArray(suggestions) || suggestions.length === 0) {
@@ -149,9 +166,15 @@ export const generateCaption = onCall(
           mood: s.mood || "casual",
           length: s.length || "short",
         }));
+
+        logger.info("Successfully parsed AI suggestions", {
+          count: suggestions.length,
+          suggestions: suggestions.map((s) => s.text),
+        });
       } catch (parseError) {
         logger.warn("Failed to parse OpenAI response, using fallbacks", {
           content,
+          cleanedAttempt: cleanContent,
           error: parseError,
         });
         suggestions = getFallbackSuggestions(filter);

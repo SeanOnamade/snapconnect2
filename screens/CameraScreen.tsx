@@ -726,7 +726,7 @@ function CameraScreen({ navigation }: CameraScreenProps) {
                   style={styles.hideSuggestionsButton}
                   onPress={() => setShowSuggestions(false)}
                 >
-                  <Text style={styles.hideSuggestionsText}>Hide Suggestions</Text>
+                  <Text style={styles.hideSuggestionsText}>Dismiss Suggestions</Text>
                 </TouchableOpacity>
               </View>
             )}

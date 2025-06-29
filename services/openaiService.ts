@@ -80,11 +80,30 @@ export const generateAICaptions = async (
     
     const response = result.data as AIResponse;
     
+    // Debug: Log the actual AI response structure
+    console.log('🔍 AI Response Debug:', {
+      hasData: !!result.data,
+      suggestions: response?.suggestions,
+      confidence: response?.confidence,
+      processingTime: response?.processingTime
+    });
+    
+    // Validate response structure
+    if (!response || !response.suggestions || !Array.isArray(response.suggestions)) {
+      console.error('❌ Invalid AI response structure, using fallbacks');
+      throw new Error('Invalid response from AI service');
+    }
+    
     const processingTime = Date.now() - startTime;
     
     console.log(`✅ Secure AI captions generated in ${processingTime}ms`);
     console.log(`📊 Confidence: ${(response.confidence * 100).toFixed(0)}%`);
     console.log(`🎯 Generated ${response.suggestions.length} suggestions`);
+    
+    // Debug: Log actual suggestion content to verify they're AI-generated
+    response.suggestions.forEach((suggestion, index) => {
+      console.log(`  ${index + 1}. "${suggestion.text}" [${suggestion.mood}, ${suggestion.length}]`);
+    });
     
     return {
       ...response,
@@ -123,25 +142,21 @@ const getFallbackSuggestions = (filter?: string): CaptionSuggestion[] => {
     none: [
       { text: "Capturing the moment ✨", mood: "casual" as const, length: "short" as const },
       { text: "Life through my lens 📸", mood: "creative" as const, length: "short" as const },
-      { text: "Sometimes you need to create your own sunshine", mood: "professional" as const, length: "long" as const },
       { text: "Vibes on point today 😎", mood: "humorous" as const, length: "short" as const }
     ],
     vintage: [
-      { text: "Old soul, timeless moments 📺", mood: "creative" as const, length: "medium" as const },
       { text: "Vintage vibes only ✨", mood: "casual" as const, length: "short" as const },
-      { text: "Some stories are better told in sepia", mood: "professional" as const, length: "long" as const },  
+      { text: "Old soul, timeless moments 📺", mood: "creative" as const, length: "medium" as const },
       { text: "Retro mood activated 📸", mood: "humorous" as const, length: "short" as const }
     ],
     noir: [
-      { text: "Life in black and white 🎬", mood: "creative" as const, length: "medium" as const },
       { text: "Dramatic lighting ✨", mood: "casual" as const, length: "short" as const },
-      { text: "Finding beauty in shadows and light", mood: "professional" as const, length: "long" as const },
+      { text: "Life in black and white 🎬", mood: "creative" as const, length: "medium" as const },
       { text: "Film noir protagonist energy 🕶️", mood: "humorous" as const, length: "medium" as const }
     ],
     cyberpunk: [
-      { text: "Future meets present 🌃", mood: "creative" as const, length: "medium" as const },
       { text: "Neon dreams ⚡", mood: "casual" as const, length: "short" as const },
-      { text: "Living in a digital wonderland", mood: "professional" as const, length: "long" as const },
+      { text: "Future meets present 🌃", mood: "creative" as const, length: "medium" as const },
       { text: "Cyberpunk main character 🤖✨", mood: "humorous" as const, length: "medium" as const }
     ]
   };
