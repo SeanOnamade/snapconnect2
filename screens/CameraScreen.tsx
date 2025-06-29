@@ -21,7 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { storage, db, auth } from '../lib/firebase';
 import { useStore } from '../store/useStore';
-import { generateAICaptions, CaptionSuggestion, AIResponse } from '../services/openaiService';
+import { generateAICaptions, generateAITags, CaptionSuggestion, TagSuggestion, AIResponse, AITagResponse } from '../services/openaiService';
 import TagEditor from '../components/TagEditor';
 
 interface CameraScreenProps {
@@ -50,6 +50,12 @@ function CameraScreen({ navigation }: CameraScreenProps) {
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState<number | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // AI Tag states
+  const [isGeneratingTags, setIsGeneratingTags] = useState(false);
+  const [tagSuggestions, setTagSuggestions] = useState<TagSuggestion[]>([]);
+  const [aiTagError, setAiTagError] = useState<string | null>(null);
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   
   const cameraRef = useRef<CameraView>(null);
   const { userData } = useStore();
@@ -247,6 +253,12 @@ function CameraScreen({ navigation }: CameraScreenProps) {
     setSelectedSuggestionIndex(null);
     setAiError(null);
     setShowSuggestions(false);
+    
+    // Reset AI tag states
+    setIsGeneratingTags(false);
+    setTagSuggestions([]);
+    setAiTagError(null);
+    setShowTagSuggestions(false);
   };
 
   const handlePermissionRequest = async () => {
@@ -567,6 +579,52 @@ function CameraScreen({ navigation }: CameraScreenProps) {
     }
   };
 
+  const suggestTags = async () => {
+    if (!capturedImage || isGeneratingTags) return;
+    
+    setIsGeneratingTags(true);
+    setAiTagError(null);
+    setTagSuggestions([]);
+    setShowTagSuggestions(false);
+    
+    try {
+      console.log('🏷️ Generating AI tags...');
+      const userInterests = userData?.interests || [];
+      const response: AITagResponse = await generateAITags(capturedImage, selectedFilter, userInterests);
+      
+      setTagSuggestions(response.suggestions);
+      setShowTagSuggestions(true);
+      
+      console.log(`✨ Generated ${response.suggestions.length} tag suggestions with ${(response.confidence * 100).toFixed(0)}% confidence`);
+      
+    } catch (error: any) {
+      console.error('AI Tag generation failed:', error);
+      setAiTagError(error.message || 'Failed to generate AI tag suggestions');
+      
+      // Show fallback suggestions on error
+      const fallbackTagSuggestions: TagSuggestion[] = [
+        { tag: "photography", relevance: "high", category: "activity" },
+        { tag: "moment", relevance: "medium", category: "mood" },
+        { tag: "creative", relevance: "medium", category: "style" },
+        { tag: "memory", relevance: "medium", category: "mood" }
+      ];
+      
+      setTagSuggestions(fallbackTagSuggestions);
+      setShowTagSuggestions(true);
+      
+    } finally {
+      setIsGeneratingTags(false);
+    }
+  };
+
+  // Handle selecting an AI-suggested tag
+  const selectTag = (tagSuggestion: TagSuggestion) => {
+    const tagName = tagSuggestion.tag;
+    if (!tags.includes(tagName)) {
+      setTags([...tags, tagName]);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <CameraView 
@@ -682,15 +740,28 @@ function CameraScreen({ navigation }: CameraScreenProps) {
               placeholder="Add tags like #music, #food..."
             />
             
-            <TouchableOpacity 
-              style={[styles.suggestButton, isGeneratingCaption && styles.suggestButtonDisabled]} 
-              onPress={suggestCaption}
-              disabled={isGeneratingCaption}
-            >
-              <Text style={styles.suggestButtonText}>
-                {isGeneratingCaption ? '🤖 AI Thinking...' : '✨ AI Suggest Caption'}
-              </Text>
-            </TouchableOpacity>
+            {/* AI Suggestion Buttons */}
+            <View style={styles.aiButtonsContainer}>
+              <TouchableOpacity 
+                style={[styles.suggestButton, styles.suggestButtonCaption, isGeneratingCaption && styles.suggestButtonDisabled]} 
+                onPress={suggestCaption}
+                disabled={isGeneratingCaption}
+              >
+                <Text style={styles.suggestButtonTextWhite}>
+                  {isGeneratingCaption ? '🤖 Thinking...' : '✨ Caption'}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.suggestButton, styles.suggestButtonTags, isGeneratingTags && styles.suggestButtonDisabled]} 
+                onPress={suggestTags}
+                disabled={isGeneratingTags}
+              >
+                <Text style={styles.suggestButtonTextWhite}>
+                  {isGeneratingTags ? '🤖 Thinking...' : '🏷️ Tags'}
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             {/* AI Error Display */}
             {aiError && (
@@ -700,12 +771,28 @@ function CameraScreen({ navigation }: CameraScreenProps) {
               </View>
             )}
 
+            {/* AI Tag Error Display */}
+            {aiTagError && (
+              <View style={styles.aiErrorContainer}>
+                <Text style={styles.aiErrorText}>⚠️ {aiTagError}</Text>
+                <Text style={styles.aiErrorSubtext}>Using backup tag suggestions</Text>
+              </View>
+            )}
+
             {/* AI Suggestions */}
             {showSuggestions && captionSuggestions.length > 0 && (
               <View style={styles.suggestionsContainer}>
-                <Text style={styles.suggestionsTitle}>
-                  🤖 AI Suggestions {aiError ? '(Backup)' : ''}
-                </Text>
+                <View style={styles.suggestionsHeader}>
+                  <Text style={styles.suggestionsTitle}>
+                    🤖 AI Suggestions {aiError ? '(Backup)' : ''}
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.dismissSuggestionsButton}
+                    onPress={() => setShowSuggestions(false)}
+                  >
+                    <Text style={styles.dismissSuggestionsX}>✕</Text>
+                  </TouchableOpacity>
+                </View>
                 <ScrollView 
                   style={styles.suggestionsList}
                   showsVerticalScrollIndicator={false}
@@ -740,12 +827,56 @@ function CameraScreen({ navigation }: CameraScreenProps) {
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
-                <TouchableOpacity 
-                  style={styles.hideSuggestionsButton}
-                  onPress={() => setShowSuggestions(false)}
+              </View>
+            )}
+
+            {/* AI Tag Suggestions */}
+            {showTagSuggestions && tagSuggestions.length > 0 && (
+              <View style={styles.tagSuggestionsContainer}>
+                <View style={styles.suggestionsHeader}>
+                  <Text style={styles.tagSuggestionsTitle}>
+                    🏷️ AI Tag Suggestions {aiTagError ? '(Backup)' : ''}
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.dismissSuggestionsButton}
+                    onPress={() => setShowTagSuggestions(false)}
+                  >
+                    <Text style={styles.dismissSuggestionsX}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView 
+                  style={styles.tagSuggestionsScrollView}
+                  contentContainerStyle={styles.tagSuggestionsList}
+                  showsVerticalScrollIndicator={false}
+                  nestedScrollEnabled={true}
                 >
-                  <Text style={styles.hideSuggestionsText}>Dismiss Suggestions</Text>
-                </TouchableOpacity>
+                  {tagSuggestions.map((tagSuggestion, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.tagSuggestionItem,
+                        tags.includes(tagSuggestion.tag) && styles.tagSuggestionItemSelected
+                      ]}
+                      onPress={() => selectTag(tagSuggestion)}
+                      disabled={tags.includes(tagSuggestion.tag)}
+                    >
+                      <Text style={styles.tagSuggestionText}>
+                        #{tagSuggestion.tag}
+                      </Text>
+                      <View style={styles.tagSuggestionMeta}>
+                        <Text style={styles.tagSuggestionCategory}>
+                          {tagSuggestion.category === 'object' ? '📦' : 
+                           tagSuggestion.category === 'mood' ? '😊' :
+                           tagSuggestion.category === 'activity' ? '⚡' :
+                           tagSuggestion.category === 'style' ? '🎨' : '📍'} {tagSuggestion.category}
+                        </Text>
+                      </View>
+                      {tags.includes(tagSuggestion.tag) && (
+                        <Text style={styles.selectedCheckmark}>✓</Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
             )}
             
@@ -1191,9 +1322,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
   },
-  // AI Caption styles
+  // AI Suggestion styles
+  aiButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 16,
+  },
+  suggestButtonCaption: {
+    flex: 1,
+    backgroundColor: '#667eea',
+  },
+  suggestButtonTags: {
+    flex: 1,
+    backgroundColor: '#764ba2',
+  },
   suggestButtonDisabled: {
     opacity: 0.6,
+  },
+  suggestButtonTextWhite: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   aiErrorContainer: {
     backgroundColor: '#ffebee',
@@ -1215,22 +1366,41 @@ const styles = StyleSheet.create({
   },
   suggestionsContainer: {
     backgroundColor: '#f8f9fa',
-    borderRadius: 6,
-    padding: 6,
-    marginBottom: 8,
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#e9ecef',
-    maxHeight: 140,
+    maxHeight: 160,
+  },
+  suggestionsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   suggestionsTitle: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 6,
-    textAlign: 'center',
+    flex: 1,
+  },
+  dismissSuggestionsButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#e5e5e5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dismissSuggestionsX: {
+    color: '#666',
+    fontSize: 14,
+    fontWeight: 'bold',
+    lineHeight: 14,
   },
   suggestionsList: {
-    gap: 2,
+    maxHeight: 120,
   },
   suggestionItem: {
     backgroundColor: '#fff',
@@ -1276,15 +1446,58 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
-  hideSuggestionsButton: {
-    marginTop: 4,
-    padding: 4,
-    alignItems: 'center',
+
+  // AI Tag Suggestion styles
+  tagSuggestionsContainer: {
+    backgroundColor: '#f0f4ff',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e7ff',
+    maxHeight: 160,
   },
-  hideSuggestionsText: {
-    color: '#666',
+  tagSuggestionsTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+  },
+  tagSuggestionsScrollView: {
+    maxHeight: 120,
+  },
+  tagSuggestionsList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  tagSuggestionItem: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 80,
+  },
+  tagSuggestionItemSelected: {
+    backgroundColor: '#e0f2fe',
+    borderColor: '#00c2c7',
+  },
+  tagSuggestionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  tagSuggestionMeta: {
+    marginLeft: 4,
+  },
+  tagSuggestionCategory: {
     fontSize: 10,
-    textDecorationLine: 'underline',
+    color: '#6b7280',
   },
   // Close button styles
   closeButton: {

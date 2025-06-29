@@ -38,6 +38,12 @@ export interface CaptionSuggestion {
   length: "short" | "medium" | "long";
 }
 
+export interface TagSuggestion {
+  tag: string;
+  relevance: "high" | "medium" | "low";
+  category: "object" | "mood" | "activity" | "style" | "location";
+}
+
 export interface GenerateCaptionRequest {
   imageBase64: string;
   filter?: string;
@@ -46,6 +52,12 @@ export interface GenerateCaptionRequest {
 
 export interface GenerateCaptionResponse {
   suggestions: CaptionSuggestion[];
+  confidence: number;
+  processingTime: number;
+}
+
+interface GenerateTagsResponse {
+  suggestions: TagSuggestion[];
   confidence: number;
   processingTime: number;
 }
@@ -314,6 +326,219 @@ export const quickReply = onCall(
   },
 );
 
+export const generateTags = onCall(
+  {secrets: [openaiApiKey]},
+  async (request): Promise<GenerateTagsResponse> => {
+    const startTime = Date.now();
+
+    // Validate request
+    if (!request.data || !request.data.imageBase64) {
+      throw new HttpsError("invalid-argument", "Image data is required");
+    }
+
+    const {imageBase64, filter, userInterests} = request.data;
+
+    // Validate base64 image
+    if (typeof imageBase64 !== "string" || imageBase64.length < 100) {
+      throw new HttpsError("invalid-argument", "Invalid image data");
+    }
+
+    try {
+      const openai = new OpenAI({
+        apiKey: openaiApiKey.value(),
+      });
+
+      // Create a detailed prompt for tag generation
+      const interestsContext = userInterests && userInterests.length > 0 ?
+        `The user is interested in: ${userInterests.join(", ")}. ` : "";
+
+      const filterContext = filter && filter !== "none" ?
+        `The image has a ${filter} filter applied. ` : "";
+
+      const prompt = "Analyze this image and suggest exactly 4 relevant " +
+        "tags for social media.\n" + interestsContext + filterContext + "\n\n" +
+        "Please provide tags that are:\n" +
+        "1. Specific to what you see in the image\n" +
+        "2. Popular on social media platforms\n" +
+        "3. Relevant to the visual content\n" +
+        "4. Mix of objects, activities, moods, or styles\n\n" +
+        "Return a JSON array of exactly 4 objects with this structure:\n" +
+        "[\n  {\n    \"tag\": \"tagname\",\n    \"relevance\": " +
+        "\"high|medium|low\",\n" +
+        "    \"category\": \"object|mood|activity|style|location\"\n  }\n" +
+        "]\n\n" +
+        "Focus on accuracy and relevance. Tags should be single words or " +
+        "short phrases without spaces, using camelCase if needed.";
+
+      logger.info("Generating AI tags with OpenAI", {
+        filter,
+        userInterests,
+        imageSize: imageBase64.length,
+      });
+
+      // Call OpenAI Vision API
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {type: "text", text: prompt},
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${imageBase64}`,
+                  detail: "low", // Cost optimization
+                },
+              },
+            ],
+          },
+        ],
+        max_tokens: 300,
+        temperature: 0.7,
+      });
+
+      const content = response.choices[0]?.message?.content;
+
+      if (!content) {
+        throw new HttpsError("internal", "No response from OpenAI");
+      }
+
+      // Parse AI response
+      let suggestions: TagSuggestion[];
+      let cleanContent = content.trim();
+
+      // Remove markdown code blocks if present
+      if (cleanContent.startsWith("```json")) {
+        cleanContent = cleanContent.replace(/^```json\s*/, "")
+          .replace(/\s*```$/, "");
+      } else if (cleanContent.startsWith("```")) {
+        cleanContent = cleanContent.replace(/^```\s*/, "")
+          .replace(/\s*```$/, "");
+      }
+
+      logger.info("Cleaned OpenAI response", {cleanContent});
+
+      try {
+        suggestions = JSON.parse(cleanContent);
+
+        // Validate structure
+        if (!Array.isArray(suggestions) || suggestions.length === 0) {
+          throw new Error("Invalid response format");
+        }
+
+        // Ensure all suggestions have required fields and limit to 4
+        suggestions = suggestions.slice(0, 4).map((s, index) => ({
+          tag: s.tag || `tag${index + 1}`,
+          relevance: s.relevance || "medium",
+          category: s.category || "activity",
+        }));
+
+        logger.info("Successfully parsed AI tag suggestions", {
+          count: suggestions.length,
+          suggestions: suggestions.map((s) => s.tag),
+        });
+      } catch (parseError) {
+        logger.warn("Failed to parse OpenAI response, using fallbacks", {
+          content,
+          cleanedAttempt: cleanContent,
+          error: parseError,
+        });
+        suggestions = getFallbackTagSuggestions(filter, userInterests);
+      }
+
+      const processingTime = Date.now() - startTime;
+      const confidence = suggestions.length > 0 ? 0.85 : 0.3;
+
+      logger.info("AI tags generated successfully", {
+        suggestionsCount: suggestions.length,
+        processingTime,
+        confidence,
+      });
+
+      return {
+        suggestions,
+        confidence,
+        processingTime,
+      };
+    } catch (error: unknown) {
+      const processingTime = Date.now() - startTime;
+      const errorObj = error as {message?: string};
+      logger.error("Error generating AI tags", {
+        error: errorObj.message,
+        processingTime,
+      });
+
+      // Return fallback tags on error
+      return {
+        suggestions: getFallbackTagSuggestions(filter, userInterests),
+        confidence: 0.2,
+        processingTime,
+      };
+    }
+  }
+);
+
+/**
+ * Fallback tag suggestions when AI fails
+ * @param {string} filter - The filter type applied to the image
+ * @param {string[]} userInterests - User's interests
+ * @return {TagSuggestion[]} Array of fallback tag suggestions
+ */
+function getFallbackTagSuggestions(
+  filter?: string,
+  userInterests?: string[]
+): TagSuggestion[] {
+  const baseOptions = {
+    none: [
+      {
+        tag: "photography",
+        relevance: "high" as const,
+        category: "activity" as const,
+      },
+      {tag: "moment", relevance: "medium" as const, category: "mood" as const},
+    ],
+    vintage: [
+      {tag: "vintage", relevance: "high" as const, category: "style" as const},
+      {tag: "retro", relevance: "high" as const, category: "style" as const},
+    ],
+    noir: [
+      {
+        tag: "blackandwhite",
+        relevance: "high" as const,
+        category: "style" as const,
+      },
+      {
+        tag: "dramatic",
+        relevance: "medium" as const,
+        category: "mood" as const,
+      },
+    ],
+    cyberpunk: [
+      {tag: "neon", relevance: "high" as const, category: "style" as const},
+      {
+        tag: "futuristic",
+        relevance: "medium" as const,
+        category: "mood" as const,
+      },
+    ],
+  };
+
+  const filterTags = baseOptions[filter as keyof typeof baseOptions] ||
+    baseOptions.none;
+
+  // Add user interests as high relevance tags
+  const interestTags: TagSuggestion[] = (userInterests || [])
+    .slice(0, 2)
+    .map((interest) => ({
+      tag: interest.toLowerCase(),
+      relevance: "high" as const,
+      category: "activity" as const,
+    }));
+
+  return [...filterTags, ...interestTags].slice(0, 4);
+}
+
 /**
  * Fallback suggestions when AI fails
  * @param {string} filter - The filter type applied to the image
@@ -491,7 +716,7 @@ export const migrateInterestsToLowercase = onCall(
       }
 
       const message = "Migration completed! Consolidated favorites into " +
-        `interests and converted to lowercase. ` +
+        "interests and converted to lowercase. " +
         `Updated ${usersUpdated} users and ${snapsUpdated} snaps.`;
       const result = {
         message,

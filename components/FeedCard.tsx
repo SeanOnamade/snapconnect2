@@ -20,6 +20,7 @@ interface Snap {
   expiresAt: Date;
   createdAt: Date;
   ownerEmail?: string;
+  ownerFirstName?: string;
 }
 
 interface FeedCardProps {
@@ -98,11 +99,11 @@ export default function FeedCard({ snap, onPress }: FeedCardProps) {
                   style={styles.avatarPlaceholder}
                 >
                   <Text style={styles.avatarText}>
-                    {snap.ownerEmail?.[0]?.toUpperCase() || '?'}
+                    {(snap.ownerFirstName || snap.ownerEmail)?.[0]?.toUpperCase() || '?'}
                   </Text>
                 </LinearGradient>
                 <View>
-                  <Text style={styles.snapOwner}>{snap.ownerEmail}</Text>
+                  <Text style={styles.snapOwner}>{snap.ownerFirstName || snap.ownerEmail}</Text>
                   <Text style={styles.timeAgo}>{getTimeAgo(snap.createdAt)}</Text>
                 </View>
               </View>

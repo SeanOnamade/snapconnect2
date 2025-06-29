@@ -45,6 +45,7 @@ interface Snap {
   expiresAt: Date;
   createdAt: Date;
   ownerEmail?: string;
+  ownerFirstName?: string;
 }
 
 export default function FeedScreen({ navigation }: any) {
@@ -84,12 +85,15 @@ export default function FeedScreen({ navigation }: any) {
       for (const docSnapshot of snapshot.docs) {
         const data = docSnapshot.data();
         
-        // Get owner email
+        // Get owner data
         let ownerEmail = 'Unknown';
+        let ownerFirstName = '';
         try {
           const userDoc = await getDoc(doc(db, 'users', data.owner));
           if (userDoc.exists()) {
-            ownerEmail = userDoc.data().email || 'Unknown';
+            const userData = userDoc.data();
+            ownerEmail = userData.email || 'Unknown';
+            ownerFirstName = userData.firstName || '';
           }
         } catch (error) {
           console.error('Error fetching user data:', error);
@@ -104,6 +108,7 @@ export default function FeedScreen({ navigation }: any) {
           expiresAt: data.expiresAt.toDate(),
           createdAt: data.createdAt.toDate(),
           ownerEmail,
+          ownerFirstName,
         });
       }
       
