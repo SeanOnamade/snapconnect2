@@ -627,96 +627,78 @@ function CameraScreen({ navigation }: CameraScreenProps) {
 
   return (
     <View style={styles.container}>
-      {/* Show static background if modals are open, otherwise show live camera */}
-      {(showCaptionModal || showShareOptions) ? (
-        <View style={[styles.camera, { backgroundColor: '#1a1a1a' }]}>
-          {capturedImage && (
-            <Image 
-              source={{ uri: capturedImage }} 
-              style={[styles.camera, { opacity: 0.3 }]}
-              blurRadius={10}
-            />
-          )}
+      <CameraView 
+        style={styles.camera} 
+        facing={facing} 
+        ref={cameraRef}
+      />
+      
+      {/* Filter Overlay */}
+      {renderFilterOverlay()}
+      
+      {/* Top Filter Button */}
+      <TouchableOpacity 
+        style={styles.filterButton} 
+        onPress={() => setShowFilters(!showFilters)}
+      >
+        <Text style={styles.filterButtonText}>
+          {FILTERS.find(f => f.id === selectedFilter)?.emoji || '📷'}
+        </Text>
+      </TouchableOpacity>
+      
+      {/* Filter Selection Panel */}
+      {showFilters && (
+        <View style={styles.filterPanel}>
+          <Text style={styles.filterPanelTitle}>Choose Filter</Text>
+          <View style={styles.filterGrid}>
+            {FILTERS.map((filter) => (
+              <TouchableOpacity
+                key={filter.id}
+                style={[
+                  styles.filterOption,
+                  selectedFilter === filter.id && styles.filterOptionSelected
+                ]}
+                onPress={() => {
+                  setSelectedFilter(filter.id);
+                  setShowFilters(false);
+                }}
+              >
+                <Text style={styles.filterEmoji}>{filter.emoji}</Text>
+                <Text style={styles.filterName}>{filter.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
-      ) : (
-        <CameraView 
-          style={styles.camera} 
-          facing={facing} 
-          ref={cameraRef}
-        />
       )}
       
-      {/* Only show camera controls and filters when no modals are open */}
-      {!(showCaptionModal || showShareOptions) && (
-        <>
-          {/* Filter Overlay */}
-          {renderFilterOverlay()}
-          
-          {/* Top Filter Button */}
-          <TouchableOpacity 
-            style={styles.filterButton} 
-            onPress={() => setShowFilters(!showFilters)}
-          >
-            <Text style={styles.filterButtonText}>
-              {FILTERS.find(f => f.id === selectedFilter)?.emoji || '📷'}
-            </Text>
-          </TouchableOpacity>
-          
-          {/* Filter Selection Panel */}
-          {showFilters && (
-            <View style={styles.filterPanel}>
-              <Text style={styles.filterPanelTitle}>Choose Filter</Text>
-              <View style={styles.filterGrid}>
-                {FILTERS.map((filter) => (
-                  <TouchableOpacity
-                    key={filter.id}
-                    style={[
-                      styles.filterOption,
-                      selectedFilter === filter.id && styles.filterOptionSelected
-                    ]}
-                    onPress={() => {
-                      setSelectedFilter(filter.id);
-                      setShowFilters(false);
-                    }}
-                  >
-                    <Text style={styles.filterEmoji}>{filter.emoji}</Text>
-                    <Text style={styles.filterName}>{filter.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+      {/* Camera Controls */}
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.flipButton} onPress={toggleCameraFacing}>
+          <View style={styles.flipButtonInner}>
+            <View style={styles.flipIcon}>
+              <View style={[styles.flipArrow, styles.flipArrowLeft]} />
+              <View style={[styles.flipArrow, styles.flipArrowRight]} />
             </View>
-          )}
-          
-          {/* Camera Controls */}
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.flipButton} onPress={toggleCameraFacing}>
-              <View style={styles.flipButtonInner}>
-                <View style={styles.flipIcon}>
-                  <View style={[styles.flipArrow, styles.flipArrowLeft]} />
-                  <View style={[styles.flipArrow, styles.flipArrowRight]} />
-                </View>
-              </View>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-              <View style={styles.captureButtonInner} />
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.feedButton} 
-              onPress={() => navigation.navigate('Feed')}
-            >
-              <View style={styles.feedButtonInner}>
-                <View style={styles.feedIcon}>
-                  <View style={styles.feedIconBar1} />
-                  <View style={styles.feedIconBar2} />
-                  <View style={styles.feedIconBar3} />
-                </View>
-              </View>
-            </TouchableOpacity>
           </View>
-        </>
-      )}
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
+          <View style={styles.captureButtonInner} />
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.feedButton} 
+          onPress={() => navigation.navigate('Feed')}
+        >
+          <View style={styles.feedButtonInner}>
+            <View style={styles.feedIcon}>
+              <View style={styles.feedIconBar1} />
+              <View style={styles.feedIconBar2} />
+              <View style={styles.feedIconBar3} />
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
 
       <Modal
         visible={showCaptionModal}
@@ -742,187 +724,193 @@ function CameraScreen({ navigation }: CameraScreenProps) {
             
             <Text style={styles.modalTitle}>Add a Caption</Text>
             
-            <View style={styles.captionInputContainer}>
-              <TextInput
-                style={styles.captionInput}
-                placeholder="What's happening?"
-                placeholderTextColor="#000"
-                value={caption}
-                onChangeText={setCaption}
-                multiline
-                maxLength={150}
-                ref={(ref) => {
-                  if (ref) {
-                    // Store reference for dismissing keyboard
-                    (global as any).captionInputRef = ref;
-                  }
-                }}
+            <ScrollView 
+              style={styles.modalScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+                                          <View style={styles.captionInputContainer}>
+                <TextInput
+                  style={styles.captionInput}
+                  placeholder="What's happening?"
+                  placeholderTextColor="#000"
+                  value={caption}
+                  onChangeText={setCaption}
+                  multiline
+                  maxLength={150}
+                  ref={(ref) => {
+                    if (ref) {
+                      // Store reference for dismissing keyboard
+                      (global as any).captionInputRef = ref;
+                    }
+                  }}
+                />
+                
+                {/* Checkmark button in top right of text input */}
+                <TouchableOpacity
+                  style={styles.captionCheckmark}
+                  onPress={() => {
+                    // Dismiss keyboard
+                    if ((global as any).captionInputRef) {
+                      (global as any).captionInputRef.blur();
+                    }
+                  }}
+                >
+                  <Text style={styles.captionCheckmarkText}>✓</Text>
+                </TouchableOpacity>
+                
+                {/* Character counter */}
+                <Text style={styles.characterCounter}>
+                  {caption.length}/150
+                </Text>
+              </View>
+              
+              <TagEditor
+                tags={tags}
+                onChange={setTags}
+                placeholder="Add tags like #music, #food..."
               />
               
-              {/* Checkmark button in top right of text input */}
-              <TouchableOpacity
-                style={styles.captionCheckmark}
-                onPress={() => {
-                  // Dismiss keyboard
-                  if ((global as any).captionInputRef) {
-                    (global as any).captionInputRef.blur();
-                  }
-                }}
-              >
-                <Text style={styles.captionCheckmarkText}>✓</Text>
-              </TouchableOpacity>
-              
-              {/* Character counter */}
-              <Text style={styles.characterCounter}>
-                {caption.length}/150
-              </Text>
-            </View>
-            
-            <TagEditor
-              tags={tags}
-              onChange={setTags}
-              placeholder="Add tags like #music, #food..."
-            />
-            
-            {/* AI Suggestion Buttons */}
-            <View style={styles.aiButtonsContainer}>
-              <TouchableOpacity 
-                style={[styles.suggestButton, styles.suggestButtonCaption, isGeneratingCaption && styles.suggestButtonDisabled]} 
-                onPress={suggestCaption}
-                disabled={isGeneratingCaption}
-              >
-                <Text style={styles.suggestButtonTextWhite}>
-                  {isGeneratingCaption ? '🤖 Thinking...' : '✨ Caption'}
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.suggestButton, styles.suggestButtonTags, isGeneratingTags && styles.suggestButtonDisabled]} 
-                onPress={suggestTags}
-                disabled={isGeneratingTags}
-              >
-                <Text style={styles.suggestButtonTextWhite}>
-                  {isGeneratingTags ? '🤖 Thinking...' : '🏷️ Tags'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* AI Error Display */}
-            {aiError && (
-              <View style={styles.aiErrorContainer}>
-                <Text style={styles.aiErrorText}>⚠️ {aiError}</Text>
-                <Text style={styles.aiErrorSubtext}>Using backup suggestions</Text>
-              </View>
-            )}
-
-            {/* AI Tag Error Display */}
-            {aiTagError && (
-              <View style={styles.aiErrorContainer}>
-                <Text style={styles.aiErrorText}>⚠️ {aiTagError}</Text>
-                <Text style={styles.aiErrorSubtext}>Using backup tag suggestions</Text>
-              </View>
-            )}
-
-            {/* AI Suggestions */}
-            {showSuggestions && captionSuggestions.length > 0 && (
-              <View style={styles.suggestionsContainer}>
-                <View style={styles.suggestionsHeader}>
-                  <Text style={styles.suggestionsTitle}>
-                    🤖 AI Suggestions {aiError ? '(Backup)' : ''}
-                  </Text>
-                  <TouchableOpacity 
-                    style={styles.dismissSuggestionsButton}
-                    onPress={() => setShowSuggestions(false)}
-                  >
-                    <Text style={styles.dismissSuggestionsX}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-                <ScrollView 
-                  style={styles.suggestionsList}
-                  showsVerticalScrollIndicator={false}
-                  nestedScrollEnabled={true}
+              {/* AI Suggestion Buttons */}
+              <View style={styles.aiButtonsContainer}>
+                <TouchableOpacity 
+                  style={[styles.suggestButton, styles.suggestButtonCaption, isGeneratingCaption && styles.suggestButtonDisabled]} 
+                  onPress={suggestCaption}
+                  disabled={isGeneratingCaption}
                 >
-                  {captionSuggestions.map((suggestion, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={[
-                        styles.suggestionItem,
-                        selectedSuggestionIndex === index && styles.suggestionItemSelected
-                      ]}
-                      onPress={() => selectSuggestion(index)}
+                  <Text style={styles.suggestButtonTextWhite}>
+                    {isGeneratingCaption ? '🤖 Thinking...' : '✨ Caption'}
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.suggestButton, styles.suggestButtonTags, isGeneratingTags && styles.suggestButtonDisabled]} 
+                  onPress={suggestTags}
+                  disabled={isGeneratingTags}
+                >
+                  <Text style={styles.suggestButtonTextWhite}>
+                    {isGeneratingTags ? '🤖 Thinking...' : '🏷️ Tags'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* AI Error Display */}
+              {aiError && (
+                <View style={styles.aiErrorContainer}>
+                  <Text style={styles.aiErrorText}>⚠️ {aiError}</Text>
+                  <Text style={styles.aiErrorSubtext}>Using backup suggestions</Text>
+                </View>
+              )}
+
+              {/* AI Tag Error Display */}
+              {aiTagError && (
+                <View style={styles.aiErrorContainer}>
+                  <Text style={styles.aiErrorText}>⚠️ {aiTagError}</Text>
+                  <Text style={styles.aiErrorSubtext}>Using backup tag suggestions</Text>
+                </View>
+              )}
+
+              {/* AI Suggestions */}
+              {showSuggestions && captionSuggestions.length > 0 && (
+                <View style={styles.suggestionsContainer}>
+                  <View style={styles.suggestionsHeader}>
+                    <Text style={styles.suggestionsTitle}>
+                      🤖 AI Suggestions {aiError ? '(Backup)' : ''}
+                    </Text>
+                    <TouchableOpacity 
+                      style={styles.dismissSuggestionsButton}
+                      onPress={() => setShowSuggestions(false)}
                     >
-                      <View style={styles.suggestionContent}>
-                        <Text style={styles.suggestionText}>{suggestion.text}</Text>
-                        <View style={styles.suggestionMeta}>
-                          <Text style={styles.suggestionMood}>
-                            {suggestion.mood === 'casual' ? '😊' : 
-                             suggestion.mood === 'creative' ? '🎨' :
-                             suggestion.mood === 'professional' ? '💼' : '😄'} {suggestion.mood}
-                          </Text>
-                          <Text style={styles.suggestionLength}>
-                            {suggestion.length === 'short' ? '📝' : 
-                             suggestion.length === 'medium' ? '📄' : '📰'} {suggestion.length}
+                      <Text style={styles.dismissSuggestionsX}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <ScrollView 
+                    style={styles.suggestionsList}
+                    showsVerticalScrollIndicator={false}
+                    nestedScrollEnabled={true}
+                  >
+                    {captionSuggestions.map((suggestion, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.suggestionItem,
+                          selectedSuggestionIndex === index && styles.suggestionItemSelected
+                        ]}
+                        onPress={() => selectSuggestion(index)}
+                      >
+                        <View style={styles.suggestionContent}>
+                          <Text style={styles.suggestionText}>{suggestion.text}</Text>
+                          <View style={styles.suggestionMeta}>
+                            <Text style={styles.suggestionMood}>
+                              {suggestion.mood === 'casual' ? '😊' : 
+                               suggestion.mood === 'creative' ? '🎨' :
+                               suggestion.mood === 'professional' ? '💼' : '😄'} {suggestion.mood}
+                            </Text>
+                            <Text style={styles.suggestionLength}>
+                              {suggestion.length === 'short' ? '📝' : 
+                               suggestion.length === 'medium' ? '📄' : '📰'} {suggestion.length}
+                            </Text>
+                          </View>
+                        </View>
+                        {selectedSuggestionIndex === index && (
+                          <Text style={styles.selectedCheckmark}>✓</Text>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* AI Tag Suggestions */}
+              {showTagSuggestions && tagSuggestions.length > 0 && (
+                <View style={styles.tagSuggestionsContainer}>
+                  <View style={styles.suggestionsHeader}>
+                    <Text style={styles.tagSuggestionsTitle}>
+                      🏷️ AI Tag Suggestions {aiTagError ? '(Backup)' : ''}
+                    </Text>
+                    <TouchableOpacity 
+                      style={styles.dismissSuggestionsButton}
+                      onPress={() => setShowTagSuggestions(false)}
+                    >
+                      <Text style={styles.dismissSuggestionsX}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <ScrollView 
+                    style={styles.tagSuggestionsScrollView}
+                    contentContainerStyle={styles.tagSuggestionsList}
+                    showsVerticalScrollIndicator={false}
+                    nestedScrollEnabled={true}
+                  >
+                    {tagSuggestions.map((tagSuggestion, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.tagSuggestionItem,
+                          tags.includes(tagSuggestion.tag) && styles.tagSuggestionItemSelected
+                        ]}
+                        onPress={() => selectTag(tagSuggestion)}
+                        disabled={tags.includes(tagSuggestion.tag)}
+                      >
+                        <Text style={styles.tagSuggestionText}>
+                          #{tagSuggestion.tag}
+                        </Text>
+                        <View style={styles.tagSuggestionMeta}>
+                          <Text style={styles.tagSuggestionCategory}>
+                            {tagSuggestion.category === 'object' ? '📦' : 
+                             tagSuggestion.category === 'mood' ? '😊' :
+                             tagSuggestion.category === 'activity' ? '⚡' :
+                             tagSuggestion.category === 'style' ? '🎨' : '📍'} {tagSuggestion.category}
                           </Text>
                         </View>
-                      </View>
-                      {selectedSuggestionIndex === index && (
-                        <Text style={styles.selectedCheckmark}>✓</Text>
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
-            {/* AI Tag Suggestions */}
-            {showTagSuggestions && tagSuggestions.length > 0 && (
-              <View style={styles.tagSuggestionsContainer}>
-                <View style={styles.suggestionsHeader}>
-                  <Text style={styles.tagSuggestionsTitle}>
-                    🏷️ AI Tag Suggestions {aiTagError ? '(Backup)' : ''}
-                  </Text>
-                  <TouchableOpacity 
-                    style={styles.dismissSuggestionsButton}
-                    onPress={() => setShowTagSuggestions(false)}
-                  >
-                    <Text style={styles.dismissSuggestionsX}>✕</Text>
-                  </TouchableOpacity>
+                        {tags.includes(tagSuggestion.tag) && (
+                          <Text style={styles.selectedCheckmark}>✓</Text>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
                 </View>
-                <ScrollView 
-                  style={styles.tagSuggestionsScrollView}
-                  contentContainerStyle={styles.tagSuggestionsList}
-                  showsVerticalScrollIndicator={false}
-                  nestedScrollEnabled={true}
-                >
-                  {tagSuggestions.map((tagSuggestion, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={[
-                        styles.tagSuggestionItem,
-                        tags.includes(tagSuggestion.tag) && styles.tagSuggestionItemSelected
-                      ]}
-                      onPress={() => selectTag(tagSuggestion)}
-                      disabled={tags.includes(tagSuggestion.tag)}
-                    >
-                      <Text style={styles.tagSuggestionText}>
-                        #{tagSuggestion.tag}
-                      </Text>
-                      <View style={styles.tagSuggestionMeta}>
-                        <Text style={styles.tagSuggestionCategory}>
-                          {tagSuggestion.category === 'object' ? '📦' : 
-                           tagSuggestion.category === 'mood' ? '😊' :
-                           tagSuggestion.category === 'activity' ? '⚡' :
-                           tagSuggestion.category === 'style' ? '🎨' : '📍'} {tagSuggestion.category}
-                        </Text>
-                      </View>
-                      {tags.includes(tagSuggestion.tag) && (
-                        <Text style={styles.selectedCheckmark}>✓</Text>
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
+              )}
+            </ScrollView>
             
             {/* Fixed buttons at bottom */}
             <View style={styles.modalButtons}>
@@ -1222,7 +1210,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 10,
-    marginTop: 15, // Increased slightly since no border padding
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
   },
   modalButton: {
     flex: 1,
@@ -1404,7 +1395,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 12,
-    marginBottom: 8,
+    marginBottom: 16,
   },
   suggestButtonCaption: {
     flex: 1,
@@ -1427,7 +1418,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffebee',
     padding: 12,
     borderRadius: 8,
-    marginBottom: 8,
+    marginBottom: 15,
     borderLeftWidth: 4,
     borderLeftColor: '#f44336',
   },
@@ -1445,11 +1436,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f9fa',
     borderRadius: 8,
     padding: 8,
-    marginBottom: 8,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#e9ecef',
     maxHeight: 160,
-    overflow: 'hidden',
   },
   suggestionsHeader: {
     flexDirection: 'row',
@@ -1530,11 +1520,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f4ff',
     borderRadius: 8,
     padding: 8,
-    marginBottom: 8,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#e0e7ff',
     maxHeight: 160,
-    overflow: 'hidden',
   },
   tagSuggestionsTitle: {
     fontSize: 13,

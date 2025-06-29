@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, doc } from 'firebase/firestore';
+import { initializeFirestore, doc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 import { CONFIG } from '../config/app';
@@ -10,7 +10,12 @@ const app = !getApps().length ? initializeApp(CONFIG.firebase) : getApp();
 
 // Initialize Firebase services
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// Initialize Firestore with long polling to avoid WebChannel errors
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true, // Forces long polling instead of WebChannel
+});
+
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
 

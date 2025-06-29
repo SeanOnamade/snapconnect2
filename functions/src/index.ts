@@ -622,6 +622,33 @@ function getFallbackSuggestions(filter?: string): CaptionSuggestion[] {
 // Initialize Firebase Admin
 initializeApp();
 
+// Creative Prompt Generator - suggests post ideas based on user interests
+export const suggestPostIdea = onCall(
+  {secrets: [openaiApiKey]},
+  async (req) => {
+    try {
+      // client sends {favorites: string[]}
+      const favorites: string[] = req.data.favorites ?? [];
+      const prompt = "You're an assistant helping college creatives " +
+        "share meaningful content. The student's interests are: " +
+        favorites.join(", ") + ". Suggest one concise, engaging post " +
+        "idea that helps them showcase progress or inspire others. " +
+        "Return ONLY the idea, no bullet or quotes.";
+
+      const openai = new OpenAI({apiKey: openaiApiKey.value()});
+      const res = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [{role: "user", content: prompt}],
+        max_tokens: 40,
+      });
+      return res.choices[0].message?.content?.trim();
+    } catch (error) {
+      logger.error("Post idea generation failed", {error});
+      throw new HttpsError("internal", "Failed to generate post idea");
+    }
+  },
+);
+
 // Migration function to fix existing data - make all interests lowercase
 export const migrateInterestsToLowercase = onCall(
   async (): Promise<{

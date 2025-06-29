@@ -30,6 +30,7 @@ interface Snap {
   expiresAt: Date;
   createdAt: Date;
   ownerEmail?: string;
+  ownerFirstName?: string;
 }
 
 interface SnapViewerScreenProps {
@@ -177,11 +178,11 @@ export default function SnapViewerScreen({ snap, visible, onClose, navigation }:
                       style={styles.avatarPlaceholder}
                     >
                       <Text style={styles.avatarText}>
-                        {snap.ownerEmail?.[0]?.toUpperCase() || '?'}
+                        {(snap.ownerFirstName || snap.ownerEmail)?.[0]?.toUpperCase() || '?'}
                       </Text>
                     </LinearGradient>
                     <View style={styles.userDetails}>
-                      <Text style={styles.ownerName}>{snap.ownerEmail}</Text>
+                      <Text style={styles.ownerName}>{snap.ownerFirstName || snap.ownerEmail}</Text>
                       <Text style={styles.timeInfo}>
                         {getTimeAgo(snap.createdAt)} • {getTimeRemaining(snap.expiresAt)}
                       </Text>

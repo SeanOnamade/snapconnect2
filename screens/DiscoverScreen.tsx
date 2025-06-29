@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet, SafeAreaView, TouchableOpacity, Modal, Alert, TextInput } from "react-native";
-import { collection, query, where, orderBy, Timestamp, onSnapshot, getDocs } from "firebase/firestore";
+import { collection, query, where, orderBy, Timestamp, onSnapshot, getDocs, doc, getDoc } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 import { LinearGradient } from 'expo-linear-gradient';
 import { signOut } from 'firebase/auth';
 import { uniq } from "lodash";
-import { auth, db, userDocRef } from "../lib/firebase";
+import * as Clipboard from "expo-clipboard";
+import { auth, db, userDocRef, functions } from "../lib/firebase";
 import FeedCard from "../components/FeedCard";
 import { theme } from '../theme/colors';
 import { useStore } from '../store/useStore';
@@ -18,6 +20,7 @@ interface Snap {
   expiresAt: any; // Firestore Timestamp
   createdAt: any; // Firestore Timestamp
   ownerEmail?: string;
+  ownerFirstName?: string;
 }
 
 export default function DiscoverScreen({ navigation }: any) {
@@ -28,6 +31,7 @@ export default function DiscoverScreen({ navigation }: any) {
   const [snaps, setSnaps] = useState<Snap[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
+  const [loadingIdea, setLoadingIdea] = useState(false);
   const { logout } = useStore();
 
   // Fetch distinct tags from all snaps
@@ -75,10 +79,37 @@ export default function DiscoverScreen({ navigation }: any) {
         );
         
         const querySnapshot = await getDocs(q);
-        const allSnaps = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        } as Snap));
+        const allSnaps: Snap[] = [];
+        
+        for (const docSnapshot of querySnapshot.docs) {
+          const data = docSnapshot.data();
+          
+                     // Get owner data
+           let ownerEmail = 'Unknown';
+           let ownerFirstName = '';
+           try {
+             const userDoc = await getDoc(doc(db, 'users', data.owner));
+             if (userDoc.exists()) {
+               const userData = userDoc.data();
+               ownerEmail = userData.email || 'Unknown';
+               ownerFirstName = userData.firstName || '';
+             }
+           } catch (error) {
+             console.error('Error fetching user data:', error);
+           }
+
+          allSnaps.push({
+            id: docSnapshot.id,
+            url: data.url,
+            caption: data.caption,
+            owner: data.owner,
+            interests: data.interests || [],
+            expiresAt: data.expiresAt,
+            createdAt: data.createdAt,
+            ownerEmail,
+            ownerFirstName,
+          });
+        }
         
         // Filter by selected interest client-side (case-insensitive)
         const filteredSnaps = allSnaps.filter(snap => {
@@ -123,6 +154,26 @@ export default function DiscoverScreen({ navigation }: any) {
     }
   };
 
+  async function getIdea() {
+    try {
+      setLoadingIdea(true);
+      const fn = httpsCallable(functions, "suggestPostIdea");
+      const { data } = await fn({ favorites: userInterests });   // userInterests already in state
+      setLoadingIdea(false);
+      Alert.alert(
+        "Post Idea",
+        data as string,
+        [
+          { text: "Copy", onPress: () => Clipboard.setStringAsync(data as string) },
+          { text: "Close", style: "cancel" }
+        ]
+      );
+    } catch (e) {
+      setLoadingIdea(false);
+      Alert.alert("Error", String(e));
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -152,6 +203,16 @@ export default function DiscoverScreen({ navigation }: any) {
       <FlatList
         ListHeaderComponent={
           <>
+            <Pressable
+              onPress={getIdea}
+              style={{alignSelf:"center", marginTop:4, marginBottom:8, 
+                      paddingHorizontal:16, paddingVertical:8, borderRadius:20,
+                      backgroundColor:"#00c2c7"}}>
+              {loadingIdea
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={{color:"#fff",fontWeight:"600"}}>🎨 Inspire Me</Text>}
+            </Pressable>
+
             <View style={{padding:12}}>
               <TextInput
                 placeholder="Search tags…"

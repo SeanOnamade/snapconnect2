@@ -300,11 +300,11 @@ export default function FeedScreen({ navigation }: any) {
                   style={styles.avatarPlaceholder}
                 >
                   <Text style={styles.avatarText}>
-                    {item.ownerEmail?.[0]?.toUpperCase() || '?'}
+                    {(item.ownerFirstName || item.ownerEmail)?.[0]?.toUpperCase() || '?'}
                   </Text>
                 </LinearGradient>
                 <View>
-                  <Text style={styles.snapOwner}>{item.ownerEmail}</Text>
+                  <Text style={styles.snapOwner}>{item.ownerFirstName || item.ownerEmail}</Text>
                   <Text style={styles.timeAgo}>{getTimeAgo(item.createdAt)}</Text>
                 </View>
               </View>
