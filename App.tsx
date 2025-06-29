@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
@@ -11,8 +13,45 @@ import { useStore } from './store/useStore';
 import AuthScreen from './screens/AuthScreen';
 import CameraScreen from './screens/CameraScreen';
 import FeedScreen from './screens/FeedScreen';
+import DiscoverScreen from './screens/DiscoverScreen';
 
 const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
+
+function TabNavigator() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarIcon: ({ color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap;
+          if (route.name === 'Feed') iconName = 'home';
+          else if (route.name === 'Camera') iconName = 'camera';
+          else iconName = 'compass';
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: '#00c2c7',   // bright teal
+        tabBarInactiveTintColor: '#9ca3af', // neutral grey
+        tabBarStyle: {
+          backgroundColor: '#ffffff',
+          borderTopWidth: 1,
+          borderTopColor: '#e5e7eb',
+          paddingBottom: 5,
+          paddingTop: 5,
+          height: 60,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
+        },
+      })}
+    >
+      <Tab.Screen name="Feed" component={FeedScreen} />
+      <Tab.Screen name="Camera" component={CameraScreen} />
+      <Tab.Screen name="Discover" component={DiscoverScreen} />
+    </Tab.Navigator>
+  );
+}
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
@@ -121,10 +160,7 @@ function App() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
-          <>
-            <Stack.Screen name="Feed" component={FeedScreen} />
-            <Stack.Screen name="Camera" component={CameraScreen} />
-          </>
+          <Stack.Screen name="Main" component={TabNavigator} />
         ) : (
           <Stack.Screen name="Auth" component={AuthScreen} />
         )}

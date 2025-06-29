@@ -1,4 +1,19 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "snaps",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "interests",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "expiresAt",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
   "fieldOverrides": []
 } 

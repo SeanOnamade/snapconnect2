@@ -51,7 +51,7 @@ export default function AuthScreen({ navigation }: any) {
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
-      navigation.replace('Camera');
+      // Navigation handled automatically by App.tsx auth state
     } catch (error: any) {
       Alert.alert('Error', error.message);
     } finally {

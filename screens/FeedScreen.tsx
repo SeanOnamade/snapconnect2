@@ -373,17 +373,6 @@ export default function FeedScreen({ navigation }: any) {
             <Text style={styles.headerSubtitle}>📸 Moments that matter</Text>
           </View>
           <View style={styles.headerButtons}>
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={() => navigation.navigate('Camera')}
-            >
-              <LinearGradient
-                colors={['#fb923c', '#f97316']}
-                style={styles.headerButtonGradient}
-              >
-                <Text style={styles.headerButtonText}>📷</Text>
-              </LinearGradient>
-            </TouchableOpacity>
             <TouchableOpacity 
               style={styles.headerButton} 
               onPress={() => setShowSettingsDropdown(!showSettingsDropdown)}
@@ -422,17 +411,14 @@ export default function FeedScreen({ navigation }: any) {
             <Text style={styles.emptyStateText}>
               Take your first snap to get started
             </Text>
-            <TouchableOpacity
-              style={styles.emptyStateButton}
-              onPress={() => navigation.navigate('Camera')}
-            >
+            <View style={styles.emptyStateButton}>
               <LinearGradient
                 colors={['#fb923c', '#f97316']}
                 style={styles.emptyStateButtonGradient}
               >
-                <Text style={styles.emptyStateButtonText}>📷 Take a Snap</Text>
+                <Text style={styles.emptyStateButtonText}>📷 Use Camera Tab Below</Text>
               </LinearGradient>
-            </TouchableOpacity>
+            </View>
           </View>
         }
       />
