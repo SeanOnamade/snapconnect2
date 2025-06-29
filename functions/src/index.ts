@@ -229,6 +229,89 @@ export const generateCaption = onCall(
   },
 );
 
+// Quick Reply Function
+export const quickReply = onCall(
+  {secrets: [openaiApiKey]},
+  async (request): Promise<string> => {
+    try {
+      // Validate request
+      if (!request.data?.caption) {
+        throw new HttpsError("invalid-argument", "Caption is required");
+      }
+
+      const {caption} = request.data as {caption: string};
+
+      // Initialize OpenAI with secret
+      const openai = new OpenAI({
+        apiKey: openaiApiKey.value(),
+      });
+
+      const prompt = "You're a college student. Reply in one fun/casual " +
+        `line to this snap: "${caption}"`;
+
+      logger.info("Generating quick reply with OpenAI", {caption});
+
+      // Call OpenAI API
+      const response = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        max_tokens: 30,
+        temperature: 0.8,
+      });
+
+      const content = response.choices[0]?.message?.content;
+
+      if (!content) {
+        throw new HttpsError("internal", "No response from OpenAI");
+      }
+
+      const reply = content.trim();
+      logger.info("Quick reply generated successfully", {reply});
+
+      return reply;
+    } catch (error: unknown) {
+      const errorObj = error as {
+        message?: string;
+        code?: string;
+        status?: number;
+      };
+      logger.error("Error generating quick reply", {
+        error: errorObj.message,
+        code: errorObj.code,
+        status: errorObj.status,
+      });
+
+      // Handle different error types
+      if (errorObj.status === 429) {
+        throw new HttpsError("resource-exhausted",
+          "AI service is busy. Please try again in a moment.");
+      } else if (errorObj.status === 401) {
+        throw new HttpsError("internal", "AI service configuration error.");
+      } else if (errorObj.code === "invalid-argument") {
+        throw error; // Re-throw validation errors
+      }
+
+      // Return a fallback reply for other errors
+      const fallbackReplies = [
+        "Looks amazing! 😍",
+        "Love this! ✨",
+        "So cool! 🔥",
+        "Great shot! 📸",
+        "This is awesome! 👏",
+      ];
+      const randomIndex = Math.floor(Math.random() * fallbackReplies.length);
+      const fallbackReply = fallbackReplies[randomIndex];
+      logger.info("Returning fallback reply due to error", {fallbackReply});
+      return fallbackReply;
+    }
+  },
+);
+
 /**
  * Fallback suggestions when AI fails
  * @param {string} filter - The filter type applied to the image

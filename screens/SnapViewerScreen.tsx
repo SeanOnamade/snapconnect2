@@ -1,0 +1,426 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  Modal,
+  Button,
+  Alert,
+  ActivityIndicator,
+  SafeAreaView,
+  Dimensions,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../lib/firebase';
+import * as Clipboard from 'expo-clipboard';
+import { theme } from '../theme/colors';
+
+const { width, height } = Dimensions.get('window');
+
+interface Snap {
+  id: string;
+  url: string;
+  caption: string;
+  owner: string;
+  interests: string[];
+  expiresAt: Date;
+  createdAt: Date;
+  ownerEmail?: string;
+}
+
+interface SnapViewerScreenProps {
+  snap: Snap;
+  visible: boolean;
+  onClose: () => void;
+}
+
+export default function SnapViewerScreen({ snap, visible, onClose }: SnapViewerScreenProps) {
+  const [replySuggestion, setReplySuggestion] = useState<string | null>(null);
+  const [isLoadingReply, setIsLoadingReply] = useState(false);
+  const [showReplyModal, setShowReplyModal] = useState(false);
+
+  const getQuickReply = async () => {
+    setIsLoadingReply(true);
+    try {
+      const fn = httpsCallable(functions, 'quickReply');
+      const { data } = await fn({ caption: snap.caption });
+      setReplySuggestion(data as string);
+      setShowReplyModal(true);
+    } catch (error) {
+      console.log('Error getting quick reply:', error);
+      Alert.alert('Error', 'Failed to generate quick reply. Please try again.');
+    } finally {
+      setIsLoadingReply(false);
+    }
+  };
+
+  const copyToClipboard = async () => {
+    if (replySuggestion) {
+      try {
+        await Clipboard.setStringAsync(replySuggestion);
+        Alert.alert('Copied!', 'Reply copied to clipboard');
+        setShowReplyModal(false);
+        setReplySuggestion(null);
+      } catch (error) {
+        console.log('Error copying to clipboard:', error);
+        Alert.alert('Error', 'Failed to copy to clipboard');
+      }
+    }
+  };
+
+  const closeReplyModal = () => {
+    setShowReplyModal(false);
+    setReplySuggestion(null);
+  };
+
+  const getTimeAgo = (date: Date) => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+
+    if (diffHours > 0) {
+      return `${diffHours}h ago`;
+    } else if (diffMinutes > 0) {
+      return `${diffMinutes}m ago`;
+    } else {
+      return 'Just now';
+    }
+  };
+
+  const getTimeRemaining = (expiresAt: Date) => {
+    const now = new Date();
+    const diffMs = expiresAt.getTime() - now.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+
+    if (diffHours > 0) {
+      return `${diffHours}h left`;
+    } else if (diffMinutes > 0) {
+      return `${diffMinutes}m left`;
+    } else {
+      return 'Expired';
+    }
+  };
+
+  return (
+    <>
+      <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
+        <SafeAreaView style={styles.container}>
+          <LinearGradient
+            colors={['#1e1b4b', '#312e81', '#3730a3']}
+            style={styles.gradient}
+          >
+            {/* Header */}
+            <View style={styles.header}>
+              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>Snap</Text>
+              <View style={styles.headerRight} />
+            </View>
+
+            {/* Snap Content */}
+            <View style={styles.snapContainer}>
+              <Image source={{ uri: snap.url }} style={styles.snapImage} />
+              
+              {/* Snap Info Overlay */}
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.8)']}
+                style={styles.snapOverlay}
+              >
+                <View style={styles.snapInfo}>
+                  <View style={styles.userInfo}>
+                    <LinearGradient
+                      colors={['#2dd4bf', '#14b8a6']}
+                      style={styles.avatarPlaceholder}
+                    >
+                      <Text style={styles.avatarText}>
+                        {snap.ownerEmail?.[0]?.toUpperCase() || '?'}
+                      </Text>
+                    </LinearGradient>
+                    <View style={styles.userDetails}>
+                      <Text style={styles.ownerName}>{snap.ownerEmail}</Text>
+                      <Text style={styles.timeInfo}>
+                        {getTimeAgo(snap.createdAt)} • {getTimeRemaining(snap.expiresAt)}
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  <Text style={styles.caption}>{snap.caption}</Text>
+                </View>
+              </LinearGradient>
+            </View>
+
+            {/* Quick Reply Button */}
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={styles.quickReplyButton}
+                onPress={getQuickReply}
+                disabled={isLoadingReply}
+              >
+                <LinearGradient
+                  colors={isLoadingReply ? ['#9ca3af', '#6b7280'] : ['#8b5cf6', '#7c3aed']}
+                  style={styles.quickReplyButtonGradient}
+                >
+                  {isLoadingReply ? (
+                    <ActivityIndicator color="white" size="small" />
+                  ) : (
+                    <Text style={styles.quickReplyButtonText}>✨ Quick Reply</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Reply Suggestion Modal */}
+      <Modal
+        visible={showReplyModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeReplyModal}
+      >
+        <View style={styles.replyModalOverlay}>
+          <View style={styles.replyModalContent}>
+            <LinearGradient
+              colors={['#1e1b4b', '#312e81']}
+              style={styles.replyModalGradient}
+            >
+              {/* Close button */}
+              <TouchableOpacity style={styles.replyModalCloseButton} onPress={closeReplyModal}>
+                <Text style={styles.replyModalCloseText}>✕</Text>
+              </TouchableOpacity>
+              
+              <Text style={styles.replyModalTitle}>Quick Reply Suggestion</Text>
+              
+              <View style={styles.replyTextContainer}>
+                <Text style={styles.replyText}>{replySuggestion}</Text>
+              </View>
+
+              <View style={styles.replyModalButtons}>
+                <TouchableOpacity
+                  style={styles.replyModalButton}
+                  onPress={copyToClipboard}
+                >
+                  <LinearGradient
+                    colors={['#10b981', '#059669']}
+                    style={styles.replyModalButtonGradient}
+                  >
+                    <Text style={styles.replyModalButtonText}>📋 Copy</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.replyModalButton}
+                  onPress={closeReplyModal}
+                >
+                  <LinearGradient
+                    colors={['#6b7280', '#4b5563']}
+                    style={styles.replyModalButtonGradient}
+                  >
+                    <Text style={styles.replyModalButtonText}>Close</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  gradient: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  closeButtonText: {
+    color: theme.colors.neutral.white,
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  headerTitle: {
+    color: theme.colors.neutral.white,
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  headerRight: {
+    width: 40,
+  },
+  snapContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  snapImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  snapOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '40%',
+    justifyContent: 'flex-end',
+  },
+  snapInfo: {
+    padding: theme.spacing.lg,
+    gap: theme.spacing.md,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  avatarPlaceholder: {
+    width: 50,
+    height: 50,
+    borderRadius: theme.borderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    color: theme.colors.neutral.white,
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  userDetails: {
+    flex: 1,
+  },
+  ownerName: {
+    color: theme.colors.neutral.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  timeInfo: {
+    color: theme.colors.neutral.white,
+    fontSize: 12,
+    opacity: 0.8,
+  },
+  caption: {
+    color: theme.colors.neutral.white,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  buttonContainer: {
+    padding: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
+  },
+  quickReplyButton: {
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+  },
+  quickReplyButtonGradient: {
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 50,
+  },
+  quickReplyButtonText: {
+    color: theme.colors.neutral.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  // Reply Modal Styles
+  replyModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
+  },
+  replyModalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+  },
+  replyModalGradient: {
+    padding: theme.spacing.lg,
+  },
+  replyModalCloseButton: {
+    position: 'absolute',
+    top: theme.spacing.sm,
+    right: theme.spacing.sm,
+    width: 30,
+    height: 30,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  replyModalCloseText: {
+    color: theme.colors.neutral.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  replyModalTitle: {
+    color: theme.colors.neutral.white,
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: theme.spacing.lg,
+    marginTop: theme.spacing.lg,
+  },
+  replyTextContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+  },
+  replyText: {
+    color: theme.colors.neutral.white,
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  replyModalButtons: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  replyModalButton: {
+    flex: 1,
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+  },
+  replyModalButtonGradient: {
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  replyModalButtonText: {
+    color: theme.colors.neutral.white,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+}); 

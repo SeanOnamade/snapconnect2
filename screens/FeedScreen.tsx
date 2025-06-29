@@ -28,9 +28,11 @@ import {
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { signOut } from 'firebase/auth';
-import { db, auth, storage } from '../lib/firebase';
+import { db, auth, storage, functions } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { useStore } from '../store/useStore';
 import { theme } from '../theme/colors';
+import SnapViewerScreen from './SnapViewerScreen';
 
 const { width } = Dimensions.get('window');
 
@@ -54,6 +56,8 @@ export default function FeedScreen({ navigation }: any) {
   const [sendingReply, setSendingReply] = useState(false);
   const [deletingSnap, setDeletingSnap] = useState<string | null>(null);
   const [unsubscribeSnaps, setUnsubscribeSnaps] = useState<(() => void) | null>(null);
+  const [showSnapViewer, setShowSnapViewer] = useState(false);
+  const [isLoadingQuickReply, setIsLoadingQuickReply] = useState(false);
   const { snaps, setSnaps, userData, logout } = useStore();
 
   useEffect(() => {
@@ -119,19 +123,32 @@ export default function FeedScreen({ navigation }: any) {
     setShowReplyModal(true);
   };
 
-  const generateQuickReply = () => {
-    const replies = [
-      "Love this! 😍",
-      "Amazing shot! 📸",
-      "So cool! ✨",
-      "Great vibe! 🔥",
-      "This is awesome! 👏",
-      "Perfect moment! 💫",
-      "Incredible! 🌟",
-      "Beautiful! 💕",
-    ];
-    const randomReply = replies[Math.floor(Math.random() * replies.length)];
-    setReplyText(randomReply);
+  const generateQuickReply = async () => {
+    if (!selectedSnap) return;
+    
+    setIsLoadingQuickReply(true);
+    try {
+      const fn = httpsCallable(functions, 'quickReply');
+      const { data } = await fn({ caption: selectedSnap.caption });
+      setReplyText(data as string);
+    } catch (error) {
+      console.log('Error getting AI quick reply:', error);
+      // Fallback to random reply
+      const replies = [
+        "Love this! 😍",
+        "Amazing shot! 📸",
+        "So cool! ✨",
+        "Great vibe! 🔥",
+        "This is awesome! 👏",
+        "Perfect moment! 💫",
+        "Incredible! 🌟",
+        "Beautiful! 💕",
+      ];
+      const randomReply = replies[Math.floor(Math.random() * replies.length)];
+      setReplyText(randomReply);
+    } finally {
+      setIsLoadingQuickReply(false);
+    }
   };
 
   const sendReply = async () => {
@@ -434,6 +451,18 @@ export default function FeedScreen({ navigation }: any) {
             <View style={styles.modalContent}>
               {selectedSnap && (
                 <>
+                  {/* Close button */}
+                  <TouchableOpacity 
+                    style={styles.modalCloseButton} 
+                    onPress={() => {
+                      setShowReplyModal(false);
+                      setReplyText('');
+                      setSelectedSnap(null);
+                    }}
+                  >
+                    <Text style={styles.modalCloseText}>✕</Text>
+                  </TouchableOpacity>
+                  
                   <Image source={{ uri: selectedSnap.url }} style={styles.modalImage} />
                   <Text style={styles.modalCaption}>{selectedSnap.caption}</Text>
                   <Text style={styles.modalOwner}>by {selectedSnap.ownerEmail}</Text>
@@ -454,12 +483,15 @@ export default function FeedScreen({ navigation }: any) {
                       <TouchableOpacity
                         style={styles.suggestReplyButton}
                         onPress={generateQuickReply}
+                        disabled={isLoadingQuickReply}
                       >
                         <LinearGradient
-                          colors={['#fb923c', '#f97316']}
+                          colors={isLoadingQuickReply ? ['#9ca3af', '#6b7280'] : ['#fb923c', '#f97316']}
                           style={styles.suggestReplyGradient}
                         >
-                          <Text style={styles.suggestReplyText}>✨ Quick Reply</Text>
+                          <Text style={styles.suggestReplyText}>
+                            {isLoadingQuickReply ? '⏳ AI Thinking...' : '✨ AI Quick Reply'}
+                          </Text>
                         </LinearGradient>
                       </TouchableOpacity>
                     </>
@@ -563,6 +595,18 @@ export default function FeedScreen({ navigation }: any) {
             </View>
           </TouchableOpacity>
         </Modal>
+      )}
+
+      {/* Example usage of SnapViewerScreen component */}
+      {selectedSnap && (
+        <SnapViewerScreen
+          snap={selectedSnap}
+          visible={showSnapViewer}
+          onClose={() => {
+            setShowSnapViewer(false);
+            setSelectedSnap(null);
+          }}
+        />
       )}
     </SafeAreaView>
   );
@@ -798,6 +842,24 @@ const styles = StyleSheet.create({
     width: '100%',
     maxHeight: '80%',
     gap: theme.spacing.md,
+    position: 'relative',
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: theme.spacing.sm,
+    right: theme.spacing.sm,
+    width: 30,
+    height: 30,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.neutral.gray[100],
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  modalCloseText: {
+    color: theme.colors.neutral.gray[600],
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   modalImage: {
     width: '100%',
