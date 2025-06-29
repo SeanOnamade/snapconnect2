@@ -20,8 +20,8 @@ import { theme } from '../theme/colors';
 const { width, height } = Dimensions.get('window');
 
 const INTERESTS = [
-  'Photography', 'Music', 'Sports', 'Travel', 'Food', 'Art', 'Technology',
-  'Fitness', 'Movies', 'Books', 'Gaming', 'Fashion', 'Nature', 'Dance'
+  'photography', 'music', 'sports', 'travel', 'food', 'art', 'technology',
+  'fitness', 'movies', 'books', 'gaming', 'fashion', 'nature', 'dance'
 ];
 
 export default function AuthScreen({ navigation }: any) {
@@ -43,7 +43,7 @@ export default function AuthScreen({ navigation }: any) {
         const result = await createUserWithEmailAndPassword(auth, email, password);
         // Store user interests after signup
         await setDoc(doc(db, 'users', result.user.uid), {
-          interests: selectedInterests,
+          interests: selectedInterests.map(i => i.toLowerCase()),
           email: email,
           createdAt: new Date(),
         });

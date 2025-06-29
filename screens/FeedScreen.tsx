@@ -28,7 +28,7 @@ import {
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { signOut } from 'firebase/auth';
-import { db, auth, storage, functions } from '../lib/firebase';
+import { db, auth, storage, functions, userDocRef } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useStore } from '../store/useStore';
 import { theme } from '../theme/colors';
@@ -563,11 +563,11 @@ export default function FeedScreen({ navigation }: any) {
                   style={styles.dropdownItem}
                   onPress={() => {
                     setShowSettingsDropdown(false);
-                    Alert.alert('Settings', 'Settings feature coming soon!');
+                    navigation.navigate('Settings');
                   }}
                 >
                   <Text style={styles.dropdownItemText}>⚙️ Settings</Text>
-                  <Text style={styles.dropdownItemSubtext}>Coming soon</Text>
+                  <Text style={styles.dropdownItemSubtext}>Edit profile & favorites</Text>
                 </TouchableOpacity>
                 
                 <View style={styles.dropdownDivider} />

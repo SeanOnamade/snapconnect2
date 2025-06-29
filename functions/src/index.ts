@@ -12,6 +12,8 @@ import * as logger from "firebase-functions/logger";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {defineSecret} from "firebase-functions/params";
 import OpenAI from "openai";
+import {getFirestore, FieldValue} from "firebase-admin/firestore";
+import {initializeApp} from "firebase-admin/app";
 
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
@@ -246,7 +248,7 @@ export const quickReply = onCall(
         apiKey: openaiApiKey.value(),
       });
 
-      const prompt = "You're a college student. Reply in one fun/casual " +
+      const prompt = "You are a college student. Reply in one fun/casual " +
         `line to this snap: "${caption}"`;
 
       logger.info("Generating quick reply with OpenAI", {caption});
@@ -391,3 +393,117 @@ function getFallbackSuggestions(filter?: string): CaptionSuggestion[] {
 
   return baseOptions[filter as keyof typeof baseOptions] || baseOptions.none;
 }
+
+// Initialize Firebase Admin
+initializeApp();
+
+// Migration function to fix existing data - make all interests lowercase
+export const migrateInterestsToLowercase = onCall(
+  async (): Promise<{
+    message: string;
+    updated: {users: number; snaps: number};
+  }> => {
+    try {
+      logger.info("Starting migration: consolidate and lowercase interests");
+
+      const db = getFirestore();
+      let usersUpdated = 0;
+      let snapsUpdated = 0;
+
+      // Migrate user documents
+      const usersSnapshot = await db.collection("users").get();
+      const userBatch = db.batch();
+
+      usersSnapshot.forEach((doc) => {
+        const data = doc.data();
+        let needsUpdate = false;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const updates: any = {};
+
+        // Consolidate interests and favorites into single field
+        const existingInterests = data.interests || [];
+        const existingFavorites = data.favorites || [];
+
+        // Merge interests and favorites, with favorites taking priority
+        // Remove duplicates and convert to lowercase
+        const allInterests = [...existingFavorites, ...existingInterests];
+        const uniqueInterests = Array.from(new Set(
+          allInterests.map((interest: string) =>
+            typeof interest === "string" ? interest.toLowerCase() : interest,
+          ),
+        )).slice(0, 5); // Limit to 5 interests
+
+        // Check if we need to update
+        const currentInterestsStr = JSON.stringify(data.interests || []);
+        const newInterestsStr = JSON.stringify(uniqueInterests);
+        const hasFavorites = data.favorites && data.favorites.length > 0;
+
+        if (newInterestsStr !== currentInterestsStr || hasFavorites) {
+          updates.interests = uniqueInterests;
+          // Remove the favorites field
+          updates.favorites = FieldValue.delete();
+          needsUpdate = true;
+        }
+
+        if (needsUpdate) {
+          userBatch.update(doc.ref, updates);
+          usersUpdated++;
+        }
+      });
+
+      // Commit user updates
+      if (usersUpdated > 0) {
+        await userBatch.commit();
+        logger.info(`Updated ${usersUpdated} user documents`);
+      }
+
+      // Migrate snap documents
+      const snapsSnapshot = await db.collection("snaps").get();
+      const snapBatch = db.batch();
+
+      snapsSnapshot.forEach((doc) => {
+        const data = doc.data();
+        let needsUpdate = false;
+
+        // Check and update interests
+        if (data.interests && Array.isArray(data.interests)) {
+          const lowercaseInterests = data.interests.map((interest: string) =>
+            typeof interest === "string" ? interest.toLowerCase() : interest,
+          );
+          // Only update if there's a change
+          const currentStr = JSON.stringify(data.interests);
+          const newStr = JSON.stringify(lowercaseInterests);
+          if (newStr !== currentStr) {
+            snapBatch.update(doc.ref, {interests: lowercaseInterests});
+            needsUpdate = true;
+          }
+        }
+
+        if (needsUpdate) {
+          snapsUpdated++;
+        }
+      });
+
+      // Commit snap updates
+      if (snapsUpdated > 0) {
+        await snapBatch.commit();
+        logger.info(`Updated ${snapsUpdated} snap documents`);
+      }
+
+      const message = "Migration completed! Consolidated favorites into " +
+        `interests and converted to lowercase. ` +
+        `Updated ${usersUpdated} users and ${snapsUpdated} snaps.`;
+      const result = {
+        message,
+        updated: {users: usersUpdated, snaps: snapsUpdated},
+      };
+
+      logger.info("Migration completed", result);
+      return result;
+    } catch (error: unknown) {
+      const errorObj = error as {message?: string};
+      logger.error("Migration failed", {error: errorObj.message});
+      throw new HttpsError("internal", "Migration failed: " + errorObj.message);
+    }
+  },
+);

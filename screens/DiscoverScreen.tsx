@@ -4,7 +4,7 @@ import { collection, query, where, orderBy, Timestamp, onSnapshot, getDocs } fro
 import { LinearGradient } from 'expo-linear-gradient';
 import { signOut } from 'firebase/auth';
 import { uniq } from "lodash";
-import { auth, db } from "../lib/firebase";
+import { auth, db, userDocRef } from "../lib/firebase";
 import FeedCard from "../components/FeedCard";
 import { theme } from '../theme/colors';
 import { useStore } from '../store/useStore';
@@ -23,6 +23,7 @@ interface Snap {
 export default function DiscoverScreen({ navigation }: any) {
   const [selected, setSelected] = useState<string>("");
   const [allTags, setAllTags] = useState<string[]>([]);
+  const [userInterests, setUserInterests] = useState<string[]>([]);
   const [search, setSearch] = useState<string>("");
   const [snaps, setSnaps] = useState<Snap[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -43,10 +44,25 @@ export default function DiscoverScreen({ navigation }: any) {
     return () => unsub();
   }, []);
 
-  // Set initial selected tag to first available tag
+  // Fetch user interests
   useEffect(() => {
-    if (!selected && allTags.length) setSelected(allTags[0]);
-  }, [allTags]);
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    
+    const unsub = onSnapshot(userDocRef(uid), doc => {
+      const data = doc.data();
+      setUserInterests(data?.interests || []);
+    });
+    return unsub;
+  }, []);
+
+  // Set initial selected tag to first available tag (user interests first, then others)
+  useEffect(() => {
+    if (!selected && allTags.length) {
+      const displayTags = [...userInterests, ...allTags.filter(t => !userInterests.includes(t))];
+      setSelected(displayTags[0]);
+    }
+  }, [allTags, userInterests]);
 
   useEffect(() => {
     const fetchSnaps = async () => {
@@ -158,12 +174,14 @@ export default function DiscoverScreen({ navigation }: any) {
             </View>
 
             <View style={styles.chipRow}>
-              {allTags.map(tag => (
+              {/* Show user interests first, then other tags */}
+              {[...userInterests, ...allTags.filter(t => !userInterests.includes(t))].map(tag => (
                 <Pressable
                   key={tag}
                   onPress={() => setSelected(tag)}
                   style={[
                     styles.chip,
+                    userInterests.includes(tag) && styles.favoriteChip,
                     selected === tag && styles.chipSelected
                   ]}>
                   <Text style={selected === tag ? styles.chipTextSel : styles.chipText}>
@@ -204,11 +222,11 @@ export default function DiscoverScreen({ navigation }: any) {
                   style={styles.dropdownItem}
                   onPress={() => {
                     setShowSettingsDropdown(false);
-                    Alert.alert('Settings', 'Settings feature coming soon!');
+                    navigation.navigate('Settings');
                   }}
                 >
                   <Text style={styles.dropdownItemText}>⚙️ Settings</Text>
-                  <Text style={styles.dropdownItemSubtext}>Coming soon</Text>
+                  <Text style={styles.dropdownItemSubtext}>Edit profile & favorites</Text>
                 </TouchableOpacity>
                 
                 <View style={styles.dropdownDivider} />
@@ -302,6 +320,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#e5e7eb", 
     marginRight: 8, 
     marginBottom: 8 
+  },
+  favoriteChip: {
+    borderWidth: 2,
+    borderColor: "#00c2c7",
+    backgroundColor: "#f0fdfa",
   },
   chipSelected: { 
     backgroundColor: "#00c2c7" 

@@ -15,6 +15,7 @@ import CameraScreen from './screens/CameraScreen';
 import FeedScreen from './screens/FeedScreen';
 import DiscoverScreen from './screens/DiscoverScreen';
 import EditTagsModal from './screens/EditTagsModal';
+import SettingsScreen from './screens/SettingsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -86,14 +87,14 @@ function App() {
               const defaultUserData = {
                 uid: authUser.uid,
                 email: authUser.email || '',
-                interests: ['Photography', 'Technology'], // Default interests
+                interests: ['photography', 'technology'], // Default interests
               };
               setUserData(defaultUserData);
               
               // Optionally save to Firestore for future use
               try {
                 await setDoc(doc(db, 'users', authUser.uid), {
-                  interests: defaultUserData.interests,
+                  interests: defaultUserData.interests.map(i => i.toLowerCase()),
                   email: authUser.email || '',
                   createdAt: new Date(),
                 });
@@ -169,6 +170,13 @@ function App() {
               options={{ 
                 presentation: 'modal',
                 animation: 'slide_from_bottom'
+              }} 
+            />
+            <Stack.Screen 
+              name="Settings" 
+              component={SettingsScreen} 
+              options={{ 
+                headerShown: false 
               }} 
             />
           </>

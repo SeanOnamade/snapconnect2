@@ -36,7 +36,7 @@ export default function EditTagsModal({ route, navigation }: EditTagsModalProps)
     
     setIsUpdating(true);
     try {
-      const finalTags = localTags.length ? localTags : ["misc"];
+      const finalTags = localTags.length ? localTags.map(tag => tag.toLowerCase()) : ["misc"];
       
       await updateDoc(doc(db, "snaps", snapId), {
         interests: finalTags

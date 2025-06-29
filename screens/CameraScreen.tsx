@@ -397,7 +397,7 @@ function CameraScreen({ navigation }: CameraScreenProps) {
         url: imageUrl,
         caption,
         owner: auth.currentUser.uid,
-        interests: tags.length ? tags : ["misc"],
+        interests: tags.length ? tags.map(tag => tag.toLowerCase()) : ["misc"],
         expiresAt: Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000),
         createdAt: Timestamp.now(),
         ownerEmail: userData.email,
