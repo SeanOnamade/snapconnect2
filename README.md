@@ -7,7 +7,7 @@
 
 ## Overview
 
-SnapConnect is a 7-day hackathon project that re-imagines Snapchat for **college creatives** with Retrieval-Augmented Generation (RAG). Built as a semi-public sharing platform, it combines the ephemeral nature of disappearing content with rapid AI assistance to help students share campus life, creative projects, and maintain progress accountability. The app leverages modern AI to enhance social interactions through intelligent captions, automated tagging, and creative inspiration - perfect for the fast-paced, goal-oriented college lifestyle.
+SnapConnect is a GauntletAI project that re-imagines Snapchat for **college creatives** with Retrieval-Augmented Generation (RAG). Built as a semi-public sharing platform, it combines the ephemeral nature of disappearing content with rapid AI assistance to help students share campus life, creative projects, and maintain progress accountability. The app leverages modern AI to enhance social interactions through intelligent captions, automated tagging, and creative inspiration - perfect for the fast-paced, goal-oriented college lifestyle.
 
 ---
 
@@ -15,11 +15,9 @@ SnapConnect is a 7-day hackathon project that re-imagines Snapchat for **college
 
 | - | Link |
 |---|------|
-| 🚀 Live App | **<insert Netlify/Vercel URL>** |
-| 🎥 5-min Demo Video | **< loom link >** |
-| 🧠 PRD PDF | [G2P2 SnapConnect.pdf](./docs/G2P2%20-%20SnapConnect.pdf) |
+| 🚀 Live App | [SnapConnect @ Vercel](https://snapconnect2.vercel.app/) |
+| 🎥 Demo Video | [Twitter](https://x.com/OnamadeSean/status/1938735741288505603) |
 | 📝 BrainLift Doc | **< Notion/Google Doc link >** |
-| 🌐 Social Post | **< LinkedIn / X link >** |
 
 ---
 
@@ -50,21 +48,6 @@ SnapConnect is a 7-day hackathon project that re-imagines Snapchat for **college
 All RAG calls handled in Firebase Cloud Functions (OpenAI GPT-3.5-turbo) with secrets stored in Secret Manager.
 
 ---
-
-## Architecture
-
-```mermaid
-flowchart LR
-  subgraph Mobile App (Expo)
-    A1(Camera) --> A2(Upload)
-    A3(Feed) -->|calls| CF1(Caption Fn)
-    A3 -->|calls| CF2(QuickReply)
-    A4(Discover) -->|calls| CF3(InspireIdea)
-  end
-  A2 --> FirebaseStorage
-  A* --> Firestore
-  CF1 & CF2 & CF3 --> OpenAI
-```
 
 **Stack**
 
