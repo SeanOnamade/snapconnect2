@@ -442,15 +442,35 @@ export default function FeedScreen({ navigation }: any) {
                   {/* Only show reply input for other people's snaps */}
                   {!(auth.currentUser && selectedSnap.owner === auth.currentUser.uid) && (
                     <>
-                      <TextInput
-                        style={styles.replyInput}
-                        placeholder="Send a quick reply..."
-                        placeholderTextColor={theme.colors.neutral.gray[400]}
-                        value={replyText}
-                        onChangeText={setReplyText}
-                        multiline
-                        maxLength={100}
-                      />
+                      <View style={styles.replyInputContainer}>
+                        <TextInput
+                          style={styles.replyInput}
+                          placeholder="Send a quick reply..."
+                          placeholderTextColor={theme.colors.neutral.gray[400]}
+                          value={replyText}
+                          onChangeText={setReplyText}
+                          multiline
+                          maxLength={100}
+                          ref={(ref) => {
+                            if (ref) {
+                              (global as any).replyInputRef = ref;
+                            }
+                          }}
+                        />
+                        
+                        {/* Checkmark button to dismiss keyboard */}
+                        <TouchableOpacity
+                          style={styles.replyCheckmark}
+                          onPress={() => {
+                            // Dismiss keyboard
+                            if ((global as any).replyInputRef) {
+                              (global as any).replyInputRef.blur();
+                            }
+                          }}
+                        >
+                          <Text style={styles.replyCheckmarkText}>✓</Text>
+                        </TouchableOpacity>
+                      </View>
                       
                       <TouchableOpacity
                         style={styles.suggestReplyButton}
@@ -873,14 +893,35 @@ const styles = StyleSheet.create({
     color: theme.colors.neutral.gray[600],
     textAlign: 'center',
   },
+  replyInputContainer: {
+    position: 'relative',
+  },
   replyInput: {
     borderWidth: 2,
     borderColor: theme.colors.neutral.gray[200],
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.md,
+    paddingRight: 40, // Make room for checkmark
     minHeight: 80,
     textAlignVertical: 'top',
     fontSize: 16,
+  },
+  replyCheckmark: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  replyCheckmarkText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+    lineHeight: 14,
   },
   suggestReplyButton: {
     borderRadius: theme.borderRadius.lg,

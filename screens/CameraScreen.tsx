@@ -19,6 +19,7 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImageManipulator from 'expo-image-manipulator';
+
 import { storage, db, auth } from '../lib/firebase';
 import { useStore } from '../store/useStore';
 import { generateAICaptions, generateAITags, CaptionSuggestion, TagSuggestion, AIResponse, AITagResponse } from '../services/openaiService';
@@ -140,105 +141,203 @@ function CameraScreen({ navigation }: CameraScreenProps) {
     }
   };
 
-  // Level 2: Image processing effects
+  // Apply both geometric and color effects to captured images
   const applyImageEffect = async (imageUri: string, filterType: string): Promise<string> => {
     try {
+      // Step 1: Apply geometric transformations with ImageManipulator
       let manipulatorActions: ImageManipulator.Action[] = [];
       
       switch (filterType) {
         case 'vintage':
-          // Resize and apply subtle rotation for vintage feel
           manipulatorActions = [
             { resize: { width: 1000 } },
-            { rotate: 0.5 }, // Subtle tilt
+            { rotate: 0.5 },
           ];
           break;
-          
         case 'noir':
-          // High contrast crop for dramatic effect
           manipulatorActions = [
             { resize: { width: 1000 } },
-            { crop: { 
-              originX: 0, 
-              originY: 0, 
-              width: 1000, 
-              height: 1000 
-            }},
+            { crop: { originX: 0, originY: 0, width: 1000, height: 1000 }},
           ];
           break;
-          
         case 'cool':
-          // Cool perspective with slight crop
           manipulatorActions = [
             { resize: { width: 1000 } },
-            { crop: { 
-              originX: 25, 
-              originY: 25, 
-              width: 950, 
-              height: 950 
-            }},
+            { crop: { originX: 25, originY: 25, width: 950, height: 950 }},
           ];
           break;
-          
         case 'warm':
-          // Warm close-up effect
           manipulatorActions = [
             { resize: { width: 1200 } },
-            { crop: { 
-              originX: 100, 
-              originY: 100, 
-              width: 1000, 
-              height: 1000 
-            }},
+            { crop: { originX: 100, originY: 100, width: 1000, height: 1000 }},
           ];
           break;
-          
         case 'vibrant':
-          // High resolution for vibrant details
-          manipulatorActions = [
-            { resize: { width: 1200 } },
-          ];
+          manipulatorActions = [{ resize: { width: 1200 } }];
           break;
-          
         case 'dreamy':
-          // Soft effect with gentle rotation
           manipulatorActions = [
             { resize: { width: 1000 } },
             { rotate: -0.3 },
           ];
           break;
-          
         case 'cyberpunk':
-          // Sharp, edgy crop
           manipulatorActions = [
             { resize: { width: 1000 } },
-            { crop: { 
-              originX: 50, 
-              originY: 0, 
-              width: 900, 
-              height: 1000 
-            }},
+            { crop: { originX: 50, originY: 0, width: 900, height: 1000 }},
           ];
           break;
-          
         default:
-          // Standard processing for 'none' and other filters
           manipulatorActions = [{ resize: { width: 1000 } }];
           break;
       }
       
-      const result = await ImageManipulator.manipulateAsync(
+      const geometricallyProcessed = await ImageManipulator.manipulateAsync(
         imageUri,
         manipulatorActions,
         { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
       );
       
-      return result.uri;
+      // Step 2: Apply color effects using platform-specific methods
+      if (filterType !== 'none') {
+        if (Platform.OS === 'web') {
+          return await applyColorFilterWeb(geometricallyProcessed.uri, filterType);
+        } else {
+          return await applyColorFilterMobile(geometricallyProcessed.uri, filterType);
+        }
+      }
+      
+      return geometricallyProcessed.uri;
     } catch (error) {
       console.error('Image processing error:', error);
-      return imageUri; // Return original if processing fails
+      return imageUri;
     }
   };
+
+  // Canvas-based color filter application (web only)
+  const applyColorFilterWeb = async (imageUri: string, filterType: string): Promise<string> => {
+    if (typeof document === 'undefined') {
+      return imageUri; // Not on web platform
+    }
+    
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new (window as any).Image() as HTMLImageElement;
+      
+      img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // Draw the original image
+        ctx?.drawImage(img, 0, 0);
+        
+        if (!ctx) {
+          resolve(imageUri);
+          return;
+        }
+        
+        // Apply color filters based on filter type
+        switch (filterType) {
+          case 'vintage':
+            ctx.globalCompositeOperation = 'multiply';
+            ctx.fillStyle = 'rgba(255,204,119,0.3)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.globalCompositeOperation = 'screen';
+            ctx.fillStyle = 'rgba(139,69,19,0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            break;
+            
+          case 'cool':
+            ctx.globalCompositeOperation = 'multiply';
+            ctx.fillStyle = 'rgba(0,191,255,0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            break;
+            
+          case 'warm':
+            ctx.globalCompositeOperation = 'multiply';
+            ctx.fillStyle = 'rgba(255,165,0,0.25)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            break;
+            
+          case 'noir':
+            // Convert to grayscale
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+              const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+              data[i] = avg;     // red
+              data[i + 1] = avg; // green
+              data[i + 2] = avg; // blue
+            }
+            ctx.putImageData(imageData, 0, 0);
+            break;
+            
+          case 'cyberpunk':
+            ctx.globalCompositeOperation = 'screen';
+            ctx.fillStyle = 'rgba(0,255,255,0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'rgba(255,0,255,0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            break;
+            
+          case 'dreamy':
+            ctx.globalCompositeOperation = 'screen';
+            ctx.fillStyle = 'rgba(255,192,203,0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            break;
+            
+          case 'vibrant':
+            // Increase saturation by enhancing color channels
+            const vibrantData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const vibrantPixels = vibrantData.data;
+            for (let i = 0; i < vibrantPixels.length; i += 4) {
+              vibrantPixels[i] = Math.min(255, vibrantPixels[i] * 1.2);     // red
+              vibrantPixels[i + 1] = Math.min(255, vibrantPixels[i + 1] * 1.2); // green
+              vibrantPixels[i + 2] = Math.min(255, vibrantPixels[i + 2] * 1.2); // blue
+            }
+            ctx.putImageData(vibrantData, 0, 0);
+            break;
+        }
+        
+        // Convert canvas to data URL
+        const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+        resolve(dataURL);
+      };
+      
+      img.onerror = () => resolve(imageUri);
+      img.src = imageUri;
+    });
+  };
+
+  // Mobile color filter application using react-native-image-filter-kit
+  const applyColorFilterMobile = async (imageUri: string, filterType: string): Promise<string> => {
+    try {
+      // Simple mobile processing (placeholder for future enhancement)
+      if (filterType === 'none') {
+        return imageUri;
+      }
+
+      // For now, apply basic processing with expo-image-manipulator
+      // TODO: Implement full color matrix support when expo adds it
+      const result = await ImageManipulator.manipulateAsync(
+        imageUri,
+        [], // No transformations - just reprocess for consistency
+        { 
+          compress: filterType === 'vibrant' ? 0.7 : 0.8, // Lower compression for vibrant
+          format: ImageManipulator.SaveFormat.JPEG
+        }
+      );
+
+      return result.uri;
+    } catch (error) {
+      console.error('Mobile color filter error:', error);
+      // Fallback to original image if filter fails
+      return imageUri;
+    }
+  };
+
+
 
   // Helper function to clean up all modal states
   const resetModalStates = () => {
