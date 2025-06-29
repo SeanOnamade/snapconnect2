@@ -312,26 +312,7 @@ export default function FeedScreen({ navigation }: any) {
                     <Text style={styles.timeRemaining}>⏰ {getTimeRemaining(item.expiresAt)}</Text>
                   </LinearGradient>
                 </View>
-                {/* Delete button - only show for own snaps */}
-                {auth.currentUser && item.owner === auth.currentUser.uid && (
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={(e) => {
-                      e.stopPropagation(); // Prevent snap modal from opening
-                      confirmDeleteSnap(item);
-                    }}
-                    disabled={deletingSnap === item.id}
-                  >
-                    <LinearGradient
-                      colors={deletingSnap === item.id ? ['#9ca3af', '#6b7280'] : ['#ef4444', '#dc2626']}
-                      style={styles.deleteButtonGradient}
-                    >
-                      <Text style={styles.deleteButtonText}>
-                        {deletingSnap === item.id ? '⏳' : '🗑️'}
-                      </Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                )}
+                {/* Removed edit/delete buttons - now in modal only */}
               </View>
             </View>
             
@@ -484,16 +465,39 @@ export default function FeedScreen({ navigation }: any) {
                   )}
                   
                   <View style={styles.modalButtons}>
-                    <TouchableOpacity
-                      style={styles.modalButton}
-                      onPress={() => {
-                        setShowReplyModal(false);
-                        setReplyText('');
-                        setSelectedSnap(null);
-                      }}
-                    >
-                      <Text style={styles.cancelButtonText}>Cancel</Text>
-                    </TouchableOpacity>
+                    {/* Show edit button for own snaps, cancel button for others */}
+                    {auth.currentUser && selectedSnap && selectedSnap.owner === auth.currentUser.uid ? (
+                      <TouchableOpacity
+                        style={[styles.modalButton, styles.sendButtonContainer]}
+                        onPress={() => {
+                          setShowReplyModal(false);
+                          setReplyText('');
+                          setSelectedSnap(null);
+                          navigation.navigate('EditTags', {
+                            snapId: selectedSnap.id,
+                            tags: selectedSnap.interests,
+                          });
+                        }}
+                      >
+                        <LinearGradient
+                          colors={['#00c2c7', '#14b8a6']}
+                          style={styles.sendButtonGradient}
+                        >
+                          <Text style={styles.sendButtonText}>✏️ Edit Tags</Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.modalButton}
+                        onPress={() => {
+                          setShowReplyModal(false);
+                          setReplyText('');
+                          setSelectedSnap(null);
+                        }}
+                      >
+                        <Text style={styles.cancelButtonText}>Cancel</Text>
+                      </TouchableOpacity>
+                    )}
                     
                     {/* Show delete button for own snaps, send button for others */}
                     {auth.currentUser && selectedSnap && selectedSnap.owner === auth.currentUser.uid ? (
@@ -588,6 +592,7 @@ export default function FeedScreen({ navigation }: any) {
         <SnapViewerScreen
           snap={selectedSnap}
           visible={showSnapViewer}
+          navigation={navigation}
           onClose={() => {
             setShowSnapViewer(false);
             setSelectedSnap(null);
@@ -963,18 +968,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.xs,
-  },
-  deleteButton: {
-    borderRadius: theme.borderRadius.full,
-    overflow: 'hidden',
-  },
-  deleteButtonGradient: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  deleteButtonText: {
-    fontSize: 14,
   },
 });

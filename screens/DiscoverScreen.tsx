@@ -35,7 +35,9 @@ export default function DiscoverScreen({ navigation }: any) {
       collection(db, "snaps"),
       snap => {
         const everyTag = snap.docs.flatMap(d => (d.data().interests ?? []));
-        setAllTags(uniq(everyTag).sort());  // alphabetical
+        // Normalize all tags to lowercase and remove duplicates
+        const normalizedTags = everyTag.map(tag => tag.toLowerCase());
+        setAllTags(uniq(normalizedTags).sort());  // alphabetical
       }
     );
     return () => unsub();
@@ -66,9 +68,13 @@ export default function DiscoverScreen({ navigation }: any) {
         const filteredSnaps = allSnaps.filter(snap => {
           if (!snap.interests || !selected) return false;
           
-          // Case-insensitive search that checks if any interest contains the selected term
-          return snap.interests.some(interest => 
-            interest.toLowerCase().includes(selected.toLowerCase())
+          // Normalize both sides to lowercase for comparison
+          const normalizedInterests = snap.interests.map(interest => interest.toLowerCase());
+          const normalizedSelected = selected.toLowerCase();
+          
+          // Check if any normalized interest contains the selected term
+          return normalizedInterests.some(interest => 
+            interest.includes(normalizedSelected)
           );
         });
         

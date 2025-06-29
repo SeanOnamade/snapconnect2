@@ -14,6 +14,7 @@ import AuthScreen from './screens/AuthScreen';
 import CameraScreen from './screens/CameraScreen';
 import FeedScreen from './screens/FeedScreen';
 import DiscoverScreen from './screens/DiscoverScreen';
+import EditTagsModal from './screens/EditTagsModal';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -160,7 +161,17 @@ function App() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
-          <Stack.Screen name="Main" component={TabNavigator} />
+          <>
+            <Stack.Screen name="Main" component={TabNavigator} />
+            <Stack.Screen 
+              name="EditTags" 
+              component={EditTagsModal} 
+              options={{ 
+                presentation: 'modal',
+                animation: 'slide_from_bottom'
+              }} 
+            />
+          </>
         ) : (
           <Stack.Screen name="Auth" component={AuthScreen} />
         )}

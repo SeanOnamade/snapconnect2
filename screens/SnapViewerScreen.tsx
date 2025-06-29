@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { httpsCallable } from 'firebase/functions';
-import { functions } from '../lib/firebase';
+import { auth, db, functions } from '../lib/firebase';
+import { deleteDoc, doc } from 'firebase/firestore';
 import * as Clipboard from 'expo-clipboard';
 import { theme } from '../theme/colors';
 
@@ -35,12 +36,14 @@ interface SnapViewerScreenProps {
   snap: Snap;
   visible: boolean;
   onClose: () => void;
+  navigation: any;
 }
 
-export default function SnapViewerScreen({ snap, visible, onClose }: SnapViewerScreenProps) {
+export default function SnapViewerScreen({ snap, visible, onClose, navigation }: SnapViewerScreenProps) {
   const [replySuggestion, setReplySuggestion] = useState<string | null>(null);
   const [isLoadingReply, setIsLoadingReply] = useState(false);
   const [showReplyModal, setShowReplyModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const getQuickReply = async () => {
     setIsLoadingReply(true);
@@ -74,6 +77,41 @@ export default function SnapViewerScreen({ snap, visible, onClose }: SnapViewerS
   const closeReplyModal = () => {
     setShowReplyModal(false);
     setReplySuggestion(null);
+  };
+
+  const handleEditTags = () => {
+    onClose(); // Close the snap viewer first
+    navigation.navigate('EditTags', {
+      snapId: snap.id,
+      tags: snap.interests,
+    });
+  };
+
+  const confirmDeleteSnap = () => {
+    Alert.alert(
+      'Delete Snap',
+      'Are you sure you want to delete this snap? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: deleteSnap },
+      ]
+    );
+  };
+
+  const deleteSnap = async () => {
+    if (!snap.id) return;
+    
+    setIsDeleting(true);
+    try {
+      await deleteDoc(doc(db, 'snaps', snap.id));
+      Alert.alert('Success', 'Snap deleted successfully');
+      onClose(); // Close the modal after successful deletion
+    } catch (error) {
+      console.error('Error deleting snap:', error);
+      Alert.alert('Error', 'Failed to delete snap. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const getTimeAgo = (date: Date) => {
@@ -155,8 +193,9 @@ export default function SnapViewerScreen({ snap, visible, onClose }: SnapViewerS
               </LinearGradient>
             </View>
 
-            {/* Quick Reply Button */}
+            {/* Action Buttons */}
             <View style={styles.buttonContainer}>
+              {/* Quick Reply Button */}
               <TouchableOpacity
                 style={styles.quickReplyButton}
                 onPress={getQuickReply}
@@ -173,6 +212,41 @@ export default function SnapViewerScreen({ snap, visible, onClose }: SnapViewerS
                   )}
                 </LinearGradient>
               </TouchableOpacity>
+
+              {/* Edit and Delete buttons - only show for own snaps */}
+              {auth.currentUser && snap.owner === auth.currentUser.uid && (
+                <View style={styles.ownPostButtons}>
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={handleEditTags}
+                    disabled={isDeleting}
+                  >
+                    <LinearGradient
+                      colors={['#00c2c7', '#14b8a6']}
+                      style={styles.editButtonGradient}
+                    >
+                      <Text style={styles.editButtonText}>✏️ Edit Tags</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={confirmDeleteSnap}
+                    disabled={isDeleting}
+                  >
+                    <LinearGradient
+                      colors={isDeleting ? ['#9ca3af', '#6b7280'] : ['#ef4444', '#dc2626']}
+                      style={styles.deleteButtonGradient}
+                    >
+                      {isDeleting ? (
+                        <ActivityIndicator color="white" size="small" />
+                      ) : (
+                        <Text style={styles.deleteButtonText}>🗑️ Delete</Text>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           </LinearGradient>
         </SafeAreaView>
@@ -419,6 +493,43 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   replyModalButtonText: {
+    color: theme.colors.neutral.white,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  // Own Post Action Buttons
+  ownPostButtons: {
+    marginTop: theme.spacing.sm,
+    gap: theme.spacing.sm,
+  },
+  editButton: {
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+  },
+  editButtonGradient: {
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  editButtonText: {
+    color: theme.colors.neutral.white,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  deleteButton: {
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+  },
+  deleteButtonGradient: {
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  deleteButtonText: {
     color: theme.colors.neutral.white,
     fontSize: 14,
     fontWeight: 'bold',

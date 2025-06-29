@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation } from '@react-navigation/native';
+import { auth } from '../lib/firebase';
 import { theme } from '../theme/colors';
 
 interface Snap {
@@ -26,6 +28,16 @@ interface FeedCardProps {
 }
 
 export default function FeedCard({ snap, onPress }: FeedCardProps) {
+  const navigation = useNavigation();
+  const currentUser = auth.currentUser;
+
+  const handleEditTags = () => {
+    // @ts-ignore - Navigation types not fully configured
+    navigation.navigate('EditTags', {
+      snapId: snap.id,
+      tags: snap.interests,
+    });
+  };
   const getTimeAgo = (date: any) => {
     const now = new Date();
     // Convert Firestore Timestamp to Date if needed
@@ -94,13 +106,25 @@ export default function FeedCard({ snap, onPress }: FeedCardProps) {
                   <Text style={styles.timeAgo}>{getTimeAgo(snap.createdAt)}</Text>
                 </View>
               </View>
-              <View style={styles.timeRemainingContainer}>
-                <LinearGradient
-                  colors={['#fb923c', '#f97316']}
-                  style={styles.timeRemainingBadge}
-                >
-                  <Text style={styles.timeRemaining}>⏰ {getTimeRemaining(snap.expiresAt)}</Text>
-                </LinearGradient>
+              <View style={styles.headerActions}>
+                {/* Edit button for user's own snaps */}
+                {currentUser?.uid === snap.owner && (
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={handleEditTags}
+                  >
+                    <Text style={styles.editIcon}>✏️</Text>
+                  </TouchableOpacity>
+                )}
+                
+                <View style={styles.timeRemainingContainer}>
+                  <LinearGradient
+                    colors={['#fb923c', '#f97316']}
+                    style={styles.timeRemainingBadge}
+                  >
+                    <Text style={styles.timeRemaining}>⏰ {getTimeRemaining(snap.expiresAt)}</Text>
+                  </LinearGradient>
+                </View>
               </View>
             </View>
             
@@ -243,5 +267,22 @@ const styles = StyleSheet.create({
   },
   replyButtonText: {
     fontSize: 16,
+  },
+  // Edit functionality styles
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  editButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editIcon: {
+    fontSize: 14,
   },
 }); 

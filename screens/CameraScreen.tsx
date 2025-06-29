@@ -22,6 +22,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { storage, db, auth } from '../lib/firebase';
 import { useStore } from '../store/useStore';
 import { generateAICaptions, CaptionSuggestion, AIResponse } from '../services/openaiService';
+import TagEditor from '../components/TagEditor';
 
 interface CameraScreenProps {
   navigation: any;
@@ -34,6 +35,7 @@ function CameraScreen({ navigation }: CameraScreenProps) {
   const [showCaptionModal, setShowCaptionModal] = useState(false);
   const [showShareOptions, setShowShareOptions] = useState(false);
   const [caption, setCaption] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [permissionLoading, setPermissionLoading] = useState(false);
@@ -238,6 +240,7 @@ function CameraScreen({ navigation }: CameraScreenProps) {
     setShowCaptionModal(false);
     setCapturedImage(null);
     setCaption('');
+    setTags([]);
     // Reset AI states
     setIsGeneratingCaption(false);
     setCaptionSuggestions([]);
@@ -394,9 +397,10 @@ function CameraScreen({ navigation }: CameraScreenProps) {
         url: imageUrl,
         caption,
         owner: auth.currentUser.uid,
-        interests: userData.interests,
+        interests: tags.length ? tags : ["misc"],
         expiresAt: Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000),
         createdAt: Timestamp.now(),
+        ownerEmail: userData.email,
       };
 
       const docRef = await addDoc(collection(db, 'snaps'), snapData);
@@ -670,6 +674,12 @@ function CameraScreen({ navigation }: CameraScreenProps) {
               onChangeText={setCaption}
               multiline
               maxLength={150}
+            />
+            
+            <TagEditor
+              tags={tags}
+              onChange={setTags}
+              placeholder="Add tags like #music, #food..."
             />
             
             <TouchableOpacity 
