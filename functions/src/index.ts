@@ -1,0 +1,287 @@
+/**
+ * Import function triggers from their respective submodules:
+ *
+ * import {onCall} from "firebase-functions/v2/https";
+ * import {onDocumentWritten} from "firebase-functions/v2/firestore";
+ *
+ * See a full list of supported triggers at https://firebase.google.com/docs/functions
+ */
+
+import {setGlobalOptions} from "firebase-functions";
+import * as logger from "firebase-functions/logger";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {defineSecret} from "firebase-functions/params";
+import OpenAI from "openai";
+
+// Start writing functions
+// https://firebase.google.com/docs/functions/typescript
+
+// For cost control, you can set the maximum number of containers that can be
+// running at the same time. This helps mitigate the impact of unexpected
+// traffic spikes by instead downgrading performance. This limit is a
+// per-function limit. You can override the limit for each function using the
+// `maxInstances` option in the function's options, e.g.
+// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
+// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
+// functions should each use functions.runWith({ maxInstances: 10 }) instead.
+// In the v1 API, each function can only serve one request per container, so
+// this will be the maximum concurrent request count.
+setGlobalOptions({"maxInstances": 10});
+// Define the OpenAI API key as a secret
+const openaiApiKey = defineSecret("OPENAI_API_KEY");
+
+export interface CaptionSuggestion {
+  text: string;
+  mood: "casual" | "professional" | "creative" | "humorous";
+  length: "short" | "medium" | "long";
+}
+
+export interface GenerateCaptionRequest {
+  imageBase64: string;
+  filter?: string;
+  userInterests?: string[];
+}
+
+export interface GenerateCaptionResponse {
+  suggestions: CaptionSuggestion[];
+  confidence: number;
+  processingTime: number;
+}
+
+// Secure OpenAI caption generation function
+export const generateCaption = onCall(
+  {"secrets": [openaiApiKey]},
+  async (request): Promise<GenerateCaptionResponse> => {
+    const startTime = Date.now();
+
+    try {
+      // Validate request
+      if (!request.data?.imageBase64) {
+        throw new HttpsError("invalid-argument", "Image data is required");
+      }
+
+      const {
+        imageBase64,
+        filter,
+        userInterests = [],
+      } = request.data as GenerateCaptionRequest;
+
+      // Initialize OpenAI with secret
+      const openai = new OpenAI({
+        apiKey: openaiApiKey.value(),
+      });
+
+      // Create context-aware prompt
+      const filterContext = filter && filter !== "none" ?
+        `The image has a "${filter}" filter applied, which affects ` +
+        "its visual style. " :
+        "";
+
+      const interestContext = userInterests.length > 0 ?
+        `The user is interested in: ${userInterests.join(", ")}. ` :
+        "";
+
+      const prompt = `${filterContext}${interestContext}Analyze this photo ` +
+        "and create 3 engaging social media captions. " +
+        "Make them diverse in style:\n\n" +
+        "1. Casual/relatable (20-40 chars)\n" +
+        "2. Creative/artistic (40-60 chars)\n" +
+        "3. Fun/humorous with emoji (30-50 chars)\n\n" +
+        "Consider the image content, mood, colors, and composition. " +
+        "Make captions shareable and authentic.\n\n" +
+        "Return ONLY a JSON array of objects like this:\n" +
+        "[\n" +
+        "  {\"text\": \"Living the moment ✨\", \"mood\": \"casual\", " +
+        "\"length\": \"short\"},\n" +
+        "  {\"text\": \"Colors that speak to the soul 🎨\", " +
+        "\"mood\": \"creative\", \"length\": \"medium\"},\n" +
+        "  {\"text\": \"Vibes are immaculate 😎🔥\", " +
+        "\"mood\": \"humorous\", \"length\": \"short\"}\n" +
+        "]";
+
+      logger.info("Generating AI captions with OpenAI", {
+        filter,
+        userInterests,
+        imageSize: imageBase64.length,
+      });
+
+      // Call OpenAI Vision API
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {type: "text", text: prompt},
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${imageBase64}`,
+                  detail: "low", // Cost optimization
+                },
+              },
+            ],
+          },
+        ],
+        max_tokens: 500,
+        temperature: 0.8,
+      });
+
+      const content = response.choices[0]?.message?.content;
+
+      if (!content) {
+        throw new HttpsError("internal", "No response from OpenAI");
+      }
+
+      // Parse AI response
+      let suggestions: CaptionSuggestion[];
+      try {
+        suggestions = JSON.parse(content);
+
+        // Validate structure
+        if (!Array.isArray(suggestions) || suggestions.length === 0) {
+          throw new Error("Invalid response format");
+        }
+
+        // Ensure all suggestions have required fields
+        suggestions = suggestions.map((s, index) => ({
+          text: s.text || `Caption ${index + 1}`,
+          mood: s.mood || "casual",
+          length: s.length || "short",
+        }));
+      } catch (parseError) {
+        logger.warn("Failed to parse OpenAI response, using fallbacks", {
+          content,
+          error: parseError,
+        });
+        suggestions = getFallbackSuggestions(filter);
+      }
+
+      const processingTime = Date.now() - startTime;
+      const confidence = suggestions.length > 0 ? 0.85 : 0.3;
+
+      logger.info("AI captions generated successfully", {
+        suggestionsCount: suggestions.length,
+        processingTime,
+        confidence,
+      });
+
+      return {
+        suggestions,
+        confidence,
+        processingTime,
+      };
+    } catch (error: unknown) {
+      const errorObj = error as {
+        message?: string;
+        code?: string;
+        status?: number;
+      };
+      logger.error("Error generating AI captions", {
+        error: errorObj.message,
+        code: errorObj.code,
+        status: errorObj.status,
+      });
+
+      const processingTime = Date.now() - startTime;
+
+      // Handle different error types
+      if (errorObj.status === 429) {
+        throw new HttpsError("resource-exhausted",
+          "AI service is busy. Please try again in a moment.");
+      } else if (errorObj.status === 401) {
+        throw new HttpsError("internal", "AI service configuration error.");
+      } else if (errorObj.code === "invalid-argument") {
+        throw error; // Re-throw validation errors
+      }
+
+      // For other errors, return fallback suggestions
+      logger.info("Returning fallback suggestions due to error");
+      return {
+        suggestions: getFallbackSuggestions(request.data?.filter),
+        confidence: 0.2,
+        processingTime,
+      };
+    }
+  },
+);
+
+/**
+ * Fallback suggestions when AI fails
+ * @param {string} filter - The filter type applied to the image
+ * @return {CaptionSuggestion[]} Array of fallback caption suggestions
+ */
+function getFallbackSuggestions(filter?: string): CaptionSuggestion[] {
+  const baseOptions = {
+    none: [
+      {
+        text: "Capturing the moment ✨",
+        mood: "casual" as const,
+        length: "short" as const,
+      },
+      {
+        text: "Life through my lens 📸",
+        mood: "creative" as const,
+        length: "short" as const,
+      },
+      {
+        text: "Vibes on point today 😎",
+        mood: "humorous" as const,
+        length: "short" as const,
+      },
+    ],
+    vintage: [
+      {
+        text: "Vintage vibes only ✨",
+        mood: "casual" as const,
+        length: "short" as const,
+      },
+      {
+        text: "Old soul, timeless moments 📺",
+        mood: "creative" as const,
+        length: "medium" as const,
+      },
+      {
+        text: "Retro mood activated 📸",
+        mood: "humorous" as const,
+        length: "short" as const,
+      },
+    ],
+    noir: [
+      {
+        text: "Dramatic lighting ✨",
+        mood: "casual" as const,
+        length: "short" as const,
+      },
+      {
+        text: "Life in black and white 🎬",
+        mood: "creative" as const,
+        length: "medium" as const,
+      },
+      {
+        text: "Film noir protagonist energy 🕶️",
+        mood: "humorous" as const,
+        length: "medium" as const,
+      },
+    ],
+    cyberpunk: [
+      {
+        text: "Neon dreams ⚡",
+        mood: "casual" as const,
+        length: "short" as const,
+      },
+      {
+        text: "Future meets present 🌃",
+        mood: "creative" as const,
+        length: "medium" as const,
+      },
+      {
+        text: "Cyberpunk main character 🤖✨",
+        mood: "humorous" as const,
+        length: "medium" as const,
+      },
+    ],
+  };
+
+  return baseOptions[filter as keyof typeof baseOptions] || baseOptions.none;
+}

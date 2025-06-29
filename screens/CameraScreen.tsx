@@ -9,15 +9,19 @@ import {
   Modal,
   TextInput,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  ScrollView
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, Timestamp } from 'firebase/firestore';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { storage, db, auth } from '../lib/firebase';
 import { useStore } from '../store/useStore';
+import { generateAICaptions, CaptionSuggestion, AIResponse } from '../services/openaiService';
 
 interface CameraScreenProps {
   navigation: any;
@@ -33,8 +37,200 @@ function CameraScreen({ navigation }: CameraScreenProps) {
   const [uploading, setUploading] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [permissionLoading, setPermissionLoading] = useState(false);
+  
+  // Filter states
+  const [selectedFilter, setSelectedFilter] = useState('none');
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // AI Caption states
+  const [isGeneratingCaption, setIsGeneratingCaption] = useState(false);
+  const [captionSuggestions, setCaptionSuggestions] = useState<CaptionSuggestion[]>([]);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState<number | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  
   const cameraRef = useRef<CameraView>(null);
   const { userData } = useStore();
+
+  // Filter definitions
+  const FILTERS = [
+    { id: 'none', name: 'Original', emoji: '📷', description: 'No filter' },
+    { id: 'vintage', name: 'Vintage', emoji: '📺', description: 'Classic sepia tone' },
+    { id: 'cool', name: 'Cool', emoji: '❄️', description: 'Blue winter vibes' },
+    { id: 'warm', name: 'Warm', emoji: '🔥', description: 'Golden hour glow' },
+    { id: 'noir', name: 'Noir', emoji: '🎬', description: 'Black & white drama' },
+    { id: 'cyberpunk', name: 'Cyber', emoji: '🌃', description: 'Neon city lights' },
+    { id: 'dreamy', name: 'Dreamy', emoji: '☁️', description: 'Soft and ethereal' },
+    { id: 'vibrant', name: 'Vibrant', emoji: '🌈', description: 'Pop of color' },
+  ];
+
+  // Render filter overlays
+  const renderFilterOverlay = () => {
+    switch (selectedFilter) {
+      case 'vintage':
+        return (
+          <LinearGradient
+            colors={['rgba(255,204,119,0.2)', 'rgba(139,69,19,0.3)']}
+            style={styles.filterOverlay}
+          />
+        );
+      
+      case 'cool':
+        return (
+          <LinearGradient
+            colors={['rgba(0,191,255,0.15)', 'rgba(30,144,255,0.25)']}
+            style={styles.filterOverlay}
+          />
+        );
+      
+      case 'warm':
+        return (
+          <LinearGradient
+            colors={['rgba(255,165,0,0.2)', 'rgba(255,69,0,0.15)']}
+            style={styles.filterOverlay}
+          />
+        );
+      
+      case 'noir':
+        return (
+          <View style={[styles.filterOverlay, { backgroundColor: 'rgba(0,0,0,0.2)' }]}>
+            <View style={styles.scanLines} />
+          </View>
+        );
+      
+      case 'cyberpunk':
+        return (
+          <View style={styles.filterOverlay}>
+            <LinearGradient
+              colors={['rgba(0,255,255,0.1)', 'rgba(255,0,255,0.1)', 'rgba(0,255,127,0.1)']}
+              style={styles.filterOverlay}
+            />
+            <View style={styles.glitchLines} />
+          </View>
+        );
+      
+      case 'dreamy':
+        return (
+          <LinearGradient
+            colors={['rgba(255,192,203,0.15)', 'rgba(221,160,221,0.2)', 'rgba(230,230,250,0.1)']}
+            style={styles.filterOverlay}
+          />
+        );
+      
+      case 'vibrant':
+        return (
+          <View style={styles.filterOverlay}>
+            <LinearGradient
+              colors={['rgba(255,20,147,0.1)', 'rgba(0,206,209,0.1)', 'rgba(255,215,0,0.1)']}
+              style={styles.filterOverlay}
+            />
+          </View>
+        );
+      
+      default:
+        return null;
+    }
+  };
+
+  // Level 2: Image processing effects
+  const applyImageEffect = async (imageUri: string, filterType: string): Promise<string> => {
+    try {
+      let manipulatorActions: ImageManipulator.Action[] = [];
+      
+      switch (filterType) {
+        case 'vintage':
+          // Resize and apply subtle rotation for vintage feel
+          manipulatorActions = [
+            { resize: { width: 1000 } },
+            { rotate: 0.5 }, // Subtle tilt
+          ];
+          break;
+          
+        case 'noir':
+          // High contrast crop for dramatic effect
+          manipulatorActions = [
+            { resize: { width: 1000 } },
+            { crop: { 
+              originX: 0, 
+              originY: 0, 
+              width: 1000, 
+              height: 1000 
+            }},
+          ];
+          break;
+          
+        case 'cool':
+          // Cool perspective with slight crop
+          manipulatorActions = [
+            { resize: { width: 1000 } },
+            { crop: { 
+              originX: 25, 
+              originY: 25, 
+              width: 950, 
+              height: 950 
+            }},
+          ];
+          break;
+          
+        case 'warm':
+          // Warm close-up effect
+          manipulatorActions = [
+            { resize: { width: 1200 } },
+            { crop: { 
+              originX: 100, 
+              originY: 100, 
+              width: 1000, 
+              height: 1000 
+            }},
+          ];
+          break;
+          
+        case 'vibrant':
+          // High resolution for vibrant details
+          manipulatorActions = [
+            { resize: { width: 1200 } },
+          ];
+          break;
+          
+        case 'dreamy':
+          // Soft effect with gentle rotation
+          manipulatorActions = [
+            { resize: { width: 1000 } },
+            { rotate: -0.3 },
+          ];
+          break;
+          
+        case 'cyberpunk':
+          // Sharp, edgy crop
+          manipulatorActions = [
+            { resize: { width: 1000 } },
+            { crop: { 
+              originX: 50, 
+              originY: 0, 
+              width: 900, 
+              height: 1000 
+            }},
+          ];
+          break;
+          
+        default:
+          // Standard processing for 'none' and other filters
+          manipulatorActions = [{ resize: { width: 1000 } }];
+          break;
+      }
+      
+      const result = await ImageManipulator.manipulateAsync(
+        imageUri,
+        manipulatorActions,
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      
+      return result.uri;
+    } catch (error) {
+      console.error('Image processing error:', error);
+      return imageUri; // Return original if processing fails
+    }
+  };
 
   // Helper function to clean up all modal states
   const resetModalStates = () => {
@@ -42,6 +238,12 @@ function CameraScreen({ navigation }: CameraScreenProps) {
     setShowCaptionModal(false);
     setCapturedImage(null);
     setCaption('');
+    // Reset AI states
+    setIsGeneratingCaption(false);
+    setCaptionSuggestions([]);
+    setSelectedSuggestionIndex(null);
+    setAiError(null);
+    setShowSuggestions(false);
   };
 
   const handlePermissionRequest = async () => {
@@ -143,7 +345,13 @@ function CameraScreen({ navigation }: CameraScreenProps) {
           base64: false,
         });
         console.log('Picture taken:', photo);
-        setCapturedImage(photo.uri);
+        
+        // Apply Level 2 image processing effects
+        console.log('Applying filter:', selectedFilter);
+        const processedImageUri = await applyImageEffect(photo.uri, selectedFilter);
+        console.log('Filter applied, processed image:', processedImageUri);
+        
+        setCapturedImage(processedImageUri);
         setShowCaptionModal(true);
       } catch (error) {
         console.error('Take picture error:', error);
@@ -302,48 +510,133 @@ function CameraScreen({ navigation }: CameraScreenProps) {
   };
 
   const suggestCaption = async () => {
-    const suggestions = [
-      "Living my best life! 📸",
-      "Moments like these ✨",
-      "Capturing the vibe 🌟",
-      "Just another day 😊",
-      "Making memories 💫"
-    ];
-    const randomCaption = suggestions[Math.floor(Math.random() * suggestions.length)];
-    setCaption(randomCaption);
+    if (!capturedImage || isGeneratingCaption) return;
+    
+    setIsGeneratingCaption(true);
+    setAiError(null);
+    setCaptionSuggestions([]);
+    setShowSuggestions(false);
+    
+    try {
+      console.log('🤖 Generating AI captions...');
+      const userInterests = userData?.interests || [];
+      const response: AIResponse = await generateAICaptions(capturedImage, selectedFilter, userInterests);
+      
+      setCaptionSuggestions(response.suggestions);
+      setShowSuggestions(true);
+      
+      // Auto-select the first suggestion
+      if (response.suggestions.length > 0) {
+        setSelectedSuggestionIndex(0);
+        setCaption(response.suggestions[0].text);
+      }
+      
+      console.log(`✨ Generated ${response.suggestions.length} suggestions with ${(response.confidence * 100).toFixed(0)}% confidence`);
+      
+    } catch (error: any) {
+      console.error('AI Caption generation failed:', error);
+      setAiError(error.message || 'Failed to generate AI suggestions');
+      
+      // Show fallback suggestions on error
+      const fallbackSuggestions: CaptionSuggestion[] = [
+        { text: "Capturing the moment ✨", mood: "casual", length: "short" },
+        { text: "Life through my lens 📸", mood: "creative", length: "short" },
+        { text: "Making memories that matter 💫", mood: "professional", length: "medium" },
+        { text: "Vibes are immaculate today 😎", mood: "humorous", length: "short" }
+      ];
+      
+      setCaptionSuggestions(fallbackSuggestions);
+      setShowSuggestions(true);
+      setSelectedSuggestionIndex(0);
+      setCaption(fallbackSuggestions[0].text);
+      
+    } finally {
+      setIsGeneratingCaption(false);
+    }
+  };
+
+  // Handle selecting a different AI suggestion
+  const selectSuggestion = (index: number) => {
+    if (captionSuggestions[index]) {
+      setSelectedSuggestionIndex(index);
+      setCaption(captionSuggestions[index].text);
+    }
   };
 
   return (
     <View style={styles.container}>
-      <CameraView style={styles.camera} facing={facing} ref={cameraRef}>
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.flipButton} onPress={toggleCameraFacing}>
-            <View style={styles.flipButtonInner}>
-              <View style={styles.flipIcon}>
-                <View style={[styles.flipArrow, styles.flipArrowLeft]} />
-                <View style={[styles.flipArrow, styles.flipArrowRight]} />
-              </View>
-            </View>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-            <View style={styles.captureButtonInner} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.feedButton} 
-            onPress={() => navigation.navigate('Feed')}
-          >
-            <View style={styles.feedButtonInner}>
-              <View style={styles.feedIcon}>
-                <View style={styles.feedIconBar1} />
-                <View style={styles.feedIconBar2} />
-                <View style={styles.feedIconBar3} />
-              </View>
-            </View>
-          </TouchableOpacity>
+      <CameraView 
+        style={styles.camera} 
+        facing={facing} 
+        ref={cameraRef}
+      />
+      
+      {/* Filter Overlay */}
+      {renderFilterOverlay()}
+      
+      {/* Top Filter Button */}
+      <TouchableOpacity 
+        style={styles.filterButton} 
+        onPress={() => setShowFilters(!showFilters)}
+      >
+        <Text style={styles.filterButtonText}>
+          {FILTERS.find(f => f.id === selectedFilter)?.emoji || '📷'}
+        </Text>
+      </TouchableOpacity>
+      
+      {/* Filter Selection Panel */}
+      {showFilters && (
+        <View style={styles.filterPanel}>
+          <Text style={styles.filterPanelTitle}>Choose Filter</Text>
+          <View style={styles.filterGrid}>
+            {FILTERS.map((filter) => (
+              <TouchableOpacity
+                key={filter.id}
+                style={[
+                  styles.filterOption,
+                  selectedFilter === filter.id && styles.filterOptionSelected
+                ]}
+                onPress={() => {
+                  setSelectedFilter(filter.id);
+                  setShowFilters(false);
+                }}
+              >
+                <Text style={styles.filterEmoji}>{filter.emoji}</Text>
+                <Text style={styles.filterName}>{filter.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
-      </CameraView>
+      )}
+      
+      {/* Camera Controls */}
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.flipButton} onPress={toggleCameraFacing}>
+          <View style={styles.flipButtonInner}>
+            <View style={styles.flipIcon}>
+              <View style={[styles.flipArrow, styles.flipArrowLeft]} />
+              <View style={[styles.flipArrow, styles.flipArrowRight]} />
+            </View>
+          </View>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
+          <View style={styles.captureButtonInner} />
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.feedButton} 
+          onPress={() => navigation.navigate('Feed')}
+        >
+          <View style={styles.feedButtonInner}>
+            <View style={styles.feedIcon}>
+              <View style={styles.feedIconBar1} />
+              <View style={styles.feedIconBar2} />
+              <View style={styles.feedIconBar3} />
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
 
       <Modal
         visible={showCaptionModal}
@@ -372,11 +665,71 @@ function CameraScreen({ navigation }: CameraScreenProps) {
             />
             
             <TouchableOpacity 
-              style={styles.suggestButton} 
+              style={[styles.suggestButton, isGeneratingCaption && styles.suggestButtonDisabled]} 
               onPress={suggestCaption}
+              disabled={isGeneratingCaption}
             >
-              <Text style={styles.suggestButtonText}>✨ Suggest Caption</Text>
+              <Text style={styles.suggestButtonText}>
+                {isGeneratingCaption ? '🤖 AI Thinking...' : '✨ AI Suggest Caption'}
+              </Text>
             </TouchableOpacity>
+
+            {/* AI Error Display */}
+            {aiError && (
+              <View style={styles.aiErrorContainer}>
+                <Text style={styles.aiErrorText}>⚠️ {aiError}</Text>
+                <Text style={styles.aiErrorSubtext}>Using backup suggestions</Text>
+              </View>
+            )}
+
+            {/* AI Suggestions */}
+            {showSuggestions && captionSuggestions.length > 0 && (
+              <View style={styles.suggestionsContainer}>
+                <Text style={styles.suggestionsTitle}>
+                  🤖 AI Suggestions {aiError ? '(Backup)' : ''}
+                </Text>
+                <ScrollView 
+                  style={styles.suggestionsList}
+                  showsVerticalScrollIndicator={false}
+                  nestedScrollEnabled={true}
+                >
+                  {captionSuggestions.map((suggestion, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.suggestionItem,
+                        selectedSuggestionIndex === index && styles.suggestionItemSelected
+                      ]}
+                      onPress={() => selectSuggestion(index)}
+                    >
+                      <View style={styles.suggestionContent}>
+                        <Text style={styles.suggestionText}>{suggestion.text}</Text>
+                        <View style={styles.suggestionMeta}>
+                          <Text style={styles.suggestionMood}>
+                            {suggestion.mood === 'casual' ? '😊' : 
+                             suggestion.mood === 'creative' ? '🎨' :
+                             suggestion.mood === 'professional' ? '💼' : '😄'} {suggestion.mood}
+                          </Text>
+                          <Text style={styles.suggestionLength}>
+                            {suggestion.length === 'short' ? '📝' : 
+                             suggestion.length === 'medium' ? '📄' : '📰'} {suggestion.length}
+                          </Text>
+                        </View>
+                      </View>
+                      {selectedSuggestionIndex === index && (
+                        <Text style={styles.selectedCheckmark}>✓</Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <TouchableOpacity 
+                  style={styles.hideSuggestionsButton}
+                  onPress={() => setShowSuggestions(false)}
+                >
+                  <Text style={styles.hideSuggestionsText}>Hide Suggestions</Text>
+                </TouchableOpacity>
+              </View>
+            )}
             
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -463,12 +816,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   buttonContainer: {
-    flex: 1,
+    position: 'absolute',
+    bottom: 50,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     backgroundColor: 'transparent',
     justifyContent: 'space-around',
-    alignItems: 'flex-end',
-    paddingBottom: 50,
+    alignItems: 'center',
+    paddingHorizontal: 20,
   },
   captureButton: {
     width: 80,
@@ -733,6 +1089,184 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
+  },
+  // Filter overlay styles
+  filterOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    pointerEvents: 'none',
+  },
+  scanLines: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0.1,
+  },
+  glitchLines: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0.05,
+  },
+  // Filter UI styles
+  filterButton: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  filterButtonText: {
+    fontSize: 24,
+  },
+  filterPanel: {
+    position: 'absolute',
+    top: 120,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    borderRadius: 15,
+    padding: 20,
+    zIndex: 10,
+  },
+  filterPanelTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  filterGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-around',
+  },
+  filterOption: {
+    alignItems: 'center',
+    padding: 10,
+    margin: 5,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    minWidth: 70,
+  },
+  filterOptionSelected: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  filterEmoji: {
+    fontSize: 24,
+    marginBottom: 5,
+  },
+  filterName: {
+    color: '#fff',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  // AI Caption styles
+  suggestButtonDisabled: {
+    opacity: 0.6,
+  },
+  aiErrorContainer: {
+    backgroundColor: '#ffebee',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 15,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f44336',
+  },
+  aiErrorText: {
+    color: '#d32f2f',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  aiErrorSubtext: {
+    color: '#757575',
+    fontSize: 12,
+  },
+  suggestionsContainer: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 6,
+    padding: 6,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    maxHeight: 140,
+  },
+  suggestionsTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  suggestionsList: {
+    gap: 2,
+  },
+  suggestionItem: {
+    backgroundColor: '#fff',
+    borderRadius: 4,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 32,
+  },
+  suggestionItemSelected: {
+    borderColor: '#007AFF',
+    backgroundColor: '#e3f2fd',
+  },
+  suggestionContent: {
+    flex: 1,
+    paddingRight: 6,
+  },
+  suggestionText: {
+    fontSize: 12,
+    color: '#333',
+    marginBottom: 1,
+    fontWeight: '500',
+    lineHeight: 14,
+  },
+  suggestionMeta: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  suggestionMood: {
+    fontSize: 10,
+    color: '#666',
+    fontWeight: '500',
+  },
+  suggestionLength: {
+    fontSize: 10,
+    color: '#666',
+  },
+  selectedCheckmark: {
+    color: '#007AFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  hideSuggestionsButton: {
+    marginTop: 4,
+    padding: 4,
+    alignItems: 'center',
+  },
+  hideSuggestionsText: {
+    color: '#666',
+    fontSize: 10,
+    textDecorationLine: 'underline',
   },
 });
 

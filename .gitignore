@@ -62,3 +62,4 @@ config/app.ts
 
 # EAS
 .easignore
+.vercel
