@@ -402,7 +402,7 @@ export default function FeedScreen({ navigation }: any) {
             <View style={styles.snapHeader}>
               <View style={styles.userInfo}>
                 <LinearGradient
-                  colors={['#2dd4bf', '#14b8a6']}
+                  colors={auth.currentUser?.uid === item.owner ? ['#fbbf24', '#f59e0b'] : ['#2dd4bf', '#14b8a6']}
                   style={styles.avatarPlaceholder}
                 >
                   <Text style={styles.avatarText}>
@@ -437,14 +437,6 @@ export default function FeedScreen({ navigation }: any) {
                   </View>
                 ))}
               </View>
-              <TouchableOpacity style={styles.replyButton}>
-                <LinearGradient
-                  colors={['#2dd4bf', '#14b8a6']}
-                  style={styles.replyButtonGradient}
-                >
-                  <Text style={styles.replyButtonText}>💬</Text>
-                </LinearGradient>
-              </TouchableOpacity>
             </View>
           </View>
         </LinearGradient>

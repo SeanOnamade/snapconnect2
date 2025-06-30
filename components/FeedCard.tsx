@@ -95,7 +95,7 @@ export default function FeedCard({ snap, onPress }: FeedCardProps) {
             <View style={styles.snapHeader}>
               <View style={styles.userInfo}>
                 <LinearGradient
-                  colors={['#00c2c7', '#14b8a6']}
+                  colors={currentUser?.uid === snap.owner ? ['#fbbf24', '#f59e0b'] : ['#00c2c7', '#14b8a6']}
                   style={styles.avatarPlaceholder}
                 >
                   <Text style={styles.avatarText}>
