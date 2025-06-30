@@ -17,7 +17,7 @@ SnapConnect is a GauntletAI project that re-imagines Snapchat for **college crea
 |---|------|
 | 🚀 Live App | [SnapConnect @ Vercel](https://snapconnect2.vercel.app/) |
 | 🎥 Demo Video | [Twitter](https://x.com/OnamadeSean/status/1938735741288505603) |
-| 📝 BrainLift Doc | **< Notion/Google Doc link >** |
+| 📝 BrainLift Doc | [Notion Page](https://www.notion.so/Brainlift-2220800268dc80028d87dcc23c3e8e30?source=copy_link) |
 
 ---
 
