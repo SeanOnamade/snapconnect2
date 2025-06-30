@@ -25,6 +25,8 @@ import {
   doc,
   getDoc,
   deleteDoc,
+  updateDoc,
+  limit,
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { signOut } from 'firebase/auth';
@@ -33,6 +35,7 @@ import { httpsCallable } from 'firebase/functions';
 import { useStore } from '../store/useStore';
 import { theme } from '../theme/colors';
 import SnapViewerScreen from './SnapViewerScreen';
+import NotificationBanner from '../components/NotificationBanner';
 
 const { width } = Dimensions.get('window');
 
@@ -59,6 +62,7 @@ export default function FeedScreen({ navigation }: any) {
   const [unsubscribeSnaps, setUnsubscribeSnaps] = useState<(() => void) | null>(null);
   const [showSnapViewer, setShowSnapViewer] = useState(false);
   const [isLoadingQuickReply, setIsLoadingQuickReply] = useState(false);
+  const [notification, setNotification] = useState<any>(null);
   const { snaps, setSnaps, userData, logout } = useStore();
 
   useEffect(() => {
@@ -71,6 +75,80 @@ export default function FeedScreen({ navigation }: any) {
       }
     };
   }, []);
+
+  // Notification listener (simplified while index builds)
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    console.log('👂 Setting up notification listener for user:', auth.currentUser.uid);
+
+    // Simplified query that doesn't require index
+    const q = query(
+      collection(db, 'notifications'),
+      where('to', '==', auth.currentUser.uid),
+      where('seen', '==', false)
+    );
+
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      console.log('🔔 Notification snapshot received, docs count:', snapshot.docs.length);
+      
+      if (!snapshot.empty) {
+        console.log('📱 Processing notifications...');
+        
+        // Manually sort by createdAt and get the most recent
+        const docs = snapshot.docs.sort((a, b) => {
+          const aTime = a.data().createdAt?.seconds || 0;
+          const bTime = b.data().createdAt?.seconds || 0;
+          return bTime - aTime; // Most recent first
+        });
+        
+        const notificationDoc = docs[0]; // Get the most recent
+        const notificationData = notificationDoc.data();
+        
+        console.log('📩 Latest notification data:', {
+          id: notificationDoc.id,
+          from: notificationData.from,
+          message: notificationData.message,
+          seen: notificationData.seen
+        });
+        
+        // Get sender info
+        try {
+          const senderDoc = await getDoc(doc(db, 'users', notificationData.from));
+          if (senderDoc.exists()) {
+            const senderData = senderDoc.data();
+            const notification = {
+              id: notificationDoc.id,
+              ...notificationData,
+              fromUserEmail: senderData.email,
+              fromUserFirstName: senderData.firstName,
+            };
+            console.log('✅ Setting notification with sender info:', notification);
+            setNotification(notification);
+          } else {
+            console.log('⚠️ Sender document not found, using basic notification');
+            setNotification({
+              id: notificationDoc.id,
+              ...notificationData,
+            });
+          }
+        } catch (error) {
+          console.error('❌ Error fetching sender data:', error);
+          setNotification({
+            id: notificationDoc.id,
+            ...notificationData,
+          });
+        }
+      } else {
+        console.log('📭 No unseen notifications found');
+        setNotification(null);
+      }
+    }, (error) => {
+      console.error('🚨 Notification listener error:', error);
+    });
+
+    return unsubscribe;
+  }, [auth.currentUser]);
 
   const loadSnaps = () => {
     const snapsQuery = query(
@@ -161,6 +239,9 @@ export default function FeedScreen({ navigation }: any) {
 
     setSendingReply(true);
     try {
+      console.log('🚀 Sending reply notification from FeedScreen');
+      
+      // Create reply document
       await addDoc(collection(db, 'replies'), {
         snapId: selectedSnap.id,
         from: auth.currentUser.uid,
@@ -169,13 +250,25 @@ export default function FeedScreen({ navigation }: any) {
         createdAt: Timestamp.now(),
       });
 
+      // Create notification for the snap owner
+      console.log('📬 Creating notification for:', selectedSnap.owner);
+      await addDoc(collection(db, 'notifications'), {
+        to: selectedSnap.owner,
+        from: auth.currentUser.uid,
+        message: replyText.trim(),
+        snapId: selectedSnap.id,
+        createdAt: Timestamp.now(),
+        seen: false
+      });
+      console.log('✅ Notification created successfully');
+
       Alert.alert('Success', 'Reply sent!');
       setShowReplyModal(false);
       setReplyText('');
       setSelectedSnap(null);
     } catch (error) {
       Alert.alert('Error', 'Failed to send reply');
-      console.error(error);
+      console.error('❌ Error sending reply:', error);
     } finally {
       setSendingReply(false);
     }
@@ -233,6 +326,19 @@ export default function FeedScreen({ navigation }: any) {
       Alert.alert('Error', 'Failed to delete snap. Please try again.');
     } finally {
       setDeletingSnap(null);
+    }
+  };
+
+  const dismissNotification = async () => {
+    if (!notification) return;
+    
+    try {
+      await updateDoc(doc(db, 'notifications', notification.id), {
+        seen: true
+      });
+      setNotification(null);
+    } catch (error) {
+      console.error('Error dismissing notification:', error);
     }
   };
 
@@ -370,6 +476,12 @@ export default function FeedScreen({ navigation }: any) {
           </View>
         </View>
       </LinearGradient>
+
+      {/* Notification Banner */}
+      <NotificationBanner 
+        notification={notification}
+        onDismiss={dismissNotification}
+      />
 
       {/* Feed */}
       <FlatList

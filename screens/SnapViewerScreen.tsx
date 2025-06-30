@@ -15,7 +15,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from '../lib/firebase';
-import { deleteDoc, doc } from 'firebase/firestore';
+import { deleteDoc, doc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import * as Clipboard from 'expo-clipboard';
 import { theme } from '../theme/colors';
 
@@ -72,6 +72,37 @@ export default function SnapViewerScreen({ snap, visible, onClose, navigation }:
         console.log('Error copying to clipboard:', error);
         Alert.alert('Error', 'Failed to copy to clipboard');
       }
+    }
+  };
+
+  const sendReply = async () => {
+    if (!replySuggestion || !auth.currentUser) return;
+    
+    try {
+      console.log('🚀 Sending reply notification:', {
+        toUid: snap.owner,
+        fromUid: auth.currentUser.uid,
+        snapId: snap.id,
+        text: replySuggestion,
+      });
+      
+      // Create notification document
+      const docRef = await addDoc(collection(db, 'notifications'), {
+        toUid: snap.owner,
+        fromUid: auth.currentUser.uid,
+        snapId: snap.id,
+        text: replySuggestion,
+        createdAt: serverTimestamp(),
+        seen: false
+      });
+      
+      console.log('✅ Notification created with ID:', docRef.id);
+      Alert.alert('Sent!', 'Your reply has been sent');
+      setShowReplyModal(false);
+      setReplySuggestion(null);
+    } catch (error) {
+      console.error('❌ Error sending reply:', error);
+      Alert.alert('Error', 'Failed to send reply. Please try again.');
     }
   };
 
@@ -278,6 +309,18 @@ export default function SnapViewerScreen({ snap, visible, onClose, navigation }:
               </View>
 
               <View style={styles.replyModalButtons}>
+                <TouchableOpacity
+                  style={styles.replyModalButton}
+                  onPress={sendReply}
+                >
+                  <LinearGradient
+                    colors={['#2563eb', '#1d4ed8']}
+                    style={styles.replyModalButtonGradient}
+                  >
+                    <Text style={styles.replyModalButtonText}>📤 Send Reply</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
                 <TouchableOpacity
                   style={styles.replyModalButton}
                   onPress={copyToClipboard}
