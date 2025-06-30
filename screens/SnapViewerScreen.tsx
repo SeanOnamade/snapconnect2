@@ -11,11 +11,14 @@ import {
   ActivityIndicator,
   SafeAreaView,
   Dimensions,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from '../lib/firebase';
-import { deleteDoc, doc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { deleteDoc, doc, addDoc, collection, serverTimestamp, updateDoc } from 'firebase/firestore';
 import * as Clipboard from 'expo-clipboard';
 import { theme } from '../theme/colors';
 
@@ -45,6 +48,9 @@ export default function SnapViewerScreen({ snap, visible, onClose, navigation }:
   const [isLoadingReply, setIsLoadingReply] = useState(false);
   const [showReplyModal, setShowReplyModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showEditCaptionModal, setShowEditCaptionModal] = useState(false);
+  const [editedCaption, setEditedCaption] = useState('');
+  const [isUpdatingCaption, setIsUpdatingCaption] = useState(false);
 
   const getQuickReply = async () => {
     setIsLoadingReply(true);
@@ -117,6 +123,47 @@ export default function SnapViewerScreen({ snap, visible, onClose, navigation }:
       snapId: snap.id,
       tags: snap.interests,
     });
+  };
+
+  const handleEditCaption = () => {
+    setEditedCaption(snap.caption);
+    setShowEditCaptionModal(true);
+  };
+
+  const handleSaveCaption = async () => {
+    if (isUpdatingCaption) return;
+    
+    setIsUpdatingCaption(true);
+    try {
+      await updateDoc(doc(db, "snaps", snap.id), {
+        caption: editedCaption.trim()
+      });
+      
+      Alert.alert(
+        'Success!',
+        'Caption updated successfully',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setShowEditCaptionModal(false);
+              // Update the snap object for immediate UI update
+              snap.caption = editedCaption.trim();
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error updating caption:', error);
+      Alert.alert('Error', 'Failed to update caption. Please try again.');
+    } finally {
+      setIsUpdatingCaption(false);
+    }
+  };
+
+  const handleCancelEditCaption = () => {
+    setShowEditCaptionModal(false);
+    setEditedCaption('');
   };
 
   const confirmDeleteSnap = () => {
@@ -250,6 +297,19 @@ export default function SnapViewerScreen({ snap, visible, onClose, navigation }:
                 <View style={styles.ownPostButtons}>
                   <TouchableOpacity
                     style={styles.editButton}
+                    onPress={handleEditCaption}
+                    disabled={isDeleting}
+                  >
+                    <LinearGradient
+                      colors={['#8b5cf6', '#7c3aed']}
+                      style={styles.editButtonGradient}
+                    >
+                      <Text style={styles.editButtonText}>📝 Edit Caption</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={styles.editButton}
                     onPress={handleEditTags}
                     disabled={isDeleting}
                   >
@@ -348,6 +408,79 @@ export default function SnapViewerScreen({ snap, visible, onClose, navigation }:
             </LinearGradient>
           </View>
         </View>
+      </Modal>
+
+      {/* Edit Caption Modal */}
+      <Modal
+        visible={showEditCaptionModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={handleCancelEditCaption}
+      >
+        <KeyboardAvoidingView
+          style={styles.editCaptionModalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.editCaptionModalContent}>
+            <LinearGradient
+              colors={['#8b5cf6', '#7c3aed']}
+              style={styles.editCaptionModalGradient}
+            >
+              {/* Header */}
+              <View style={styles.editCaptionHeader}>
+                <TouchableOpacity
+                  style={styles.editCaptionCancelButton}
+                  onPress={handleCancelEditCaption}
+                >
+                  <Text style={styles.editCaptionCancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.editCaptionTitle}>Edit Caption</Text>
+                
+                <TouchableOpacity
+                  style={[styles.editCaptionSaveButton, isUpdatingCaption && styles.editCaptionSaveButtonDisabled]}
+                  onPress={handleSaveCaption}
+                  disabled={isUpdatingCaption}
+                >
+                  {isUpdatingCaption ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.editCaptionSaveButtonText}>Save</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {/* Content */}
+              <View style={styles.editCaptionContent}>
+                <Text style={styles.editCaptionInstruction}>
+                  Edit your caption to better describe your snap
+                </Text>
+                
+                <View style={styles.editCaptionInputContainer}>
+                  <TextInput
+                    style={styles.editCaptionInput}
+                    placeholder="What's happening?"
+                    placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                    value={editedCaption}
+                    onChangeText={setEditedCaption}
+                    multiline
+                    maxLength={150}
+                    autoFocus
+                  />
+                  
+                  {/* Character counter */}
+                  <Text style={styles.editCaptionCharacterCounter}>
+                    {editedCaption.length}/150
+                  </Text>
+                </View>
+                
+                <Text style={styles.editCaptionHint}>
+                  💡 Tip: Keep it engaging and authentic
+                </Text>
+              </View>
+            </LinearGradient>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
