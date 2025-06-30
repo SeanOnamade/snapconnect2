@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, StyleSheet, Alert, SafeAreaView, TouchableOpacity } from "react-native";
-import { onSnapshot, setDoc } from "firebase/firestore";
+import { onSnapshot, setDoc, query, where, getCountFromServer, collection, Timestamp } from "firebase/firestore";
 import { LinearGradient } from 'expo-linear-gradient';
 import { httpsCallable } from 'firebase/functions';
-import { auth, userDocRef, functions } from "../lib/firebase";
+import { auth, userDocRef, functions, db } from "../lib/firebase";
 import TagEditor from "../components/TagEditor";
 
 export default function SettingsScreen({ navigation }: any) {
@@ -11,6 +11,8 @@ export default function SettingsScreen({ navigation }: any) {
   const [firstName, setFirstName] = useState("");
   const [interests, setInterests] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [snapCount, setSnapCount] = useState<number>(0);
+  const [activeSnapCount, setActiveSnapCount] = useState<number>(0);
 
   // Load user profile data
   useEffect(() => {
@@ -25,6 +27,32 @@ export default function SettingsScreen({ navigation }: any) {
     });
     return unsub;
   }, [uid]);
+
+  // Fetch snap counts
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      // Get lifetime snap count
+      const lifetimeQuery = query(collection(db, "snaps"), where("owner", "==", uid));
+      getCountFromServer(lifetimeQuery).then(
+        c => setSnapCount(c.data().count)
+      ).catch(error => {
+        console.error("Error fetching lifetime snap count:", error);
+      });
+
+      // Get active snap count (non-expired)
+      const activeQuery = query(
+        collection(db, "snaps"), 
+        where("owner", "==", uid),
+        where("expiresAt", ">", Timestamp.now())
+      );
+      getCountFromServer(activeQuery).then(
+        c => setActiveSnapCount(c.data().count)
+      ).catch(error => {
+        console.error("Error fetching active snap count:", error);
+      });
+    }
+  }, []);
 
   const handleSave = async () => {
     setLoading(true);
@@ -121,6 +149,12 @@ export default function SettingsScreen({ navigation }: any) {
             onChange={handleInterestsChange}
             placeholder="Add interest and press Enter"
           />
+          <Text style={{marginTop: 24, fontSize: 16}}>
+            📈 Snaps posted: <Text style={{fontWeight: "600"}}>{snapCount}</Text>
+          </Text>
+          <Text style={{marginTop: 8, fontSize: 16}}>
+            ⚡ Active snaps: <Text style={{fontWeight: "600"}}>{activeSnapCount}</Text>
+          </Text>
         </View>
 
         <TouchableOpacity

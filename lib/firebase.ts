@@ -3,7 +3,7 @@ import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { initializeFirestore, doc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
-import { CONFIG } from '../config/app.public';
+import { CONFIG } from '../config/app';
 
 // Initialize Firebase App (prevent multiple initialization)
 const app = !getApps().length ? initializeApp(CONFIG.firebase) : getApp();
