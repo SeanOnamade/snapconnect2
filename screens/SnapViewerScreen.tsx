@@ -711,4 +711,94 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
+  // Edit Caption Modal Styles
+  editCaptionModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'flex-end',
+  },
+  editCaptionModalContent: {
+    backgroundColor: theme.colors.neutral.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+  },
+  editCaptionModalGradient: {
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  editCaptionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  editCaptionCancelButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  editCaptionCancelButtonText: {
+    color: theme.colors.neutral.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  editCaptionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.neutral.white,
+    flex: 1,
+    textAlign: 'center',
+  },
+  editCaptionSaveButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 8,
+  },
+  editCaptionSaveButtonDisabled: {
+    opacity: 0.6,
+  },
+  editCaptionSaveButtonText: {
+    color: theme.colors.neutral.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  editCaptionContent: {
+    gap: theme.spacing.md,
+  },
+  editCaptionInstruction: {
+    fontSize: 16,
+    color: theme.colors.neutral.white,
+    textAlign: 'center',
+    opacity: 0.9,
+  },
+  editCaptionInputContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    position: 'relative',
+  },
+  editCaptionInput: {
+    color: theme.colors.neutral.white,
+    fontSize: 16,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  editCaptionCharacterCounter: {
+    position: 'absolute',
+    bottom: theme.spacing.sm,
+    right: theme.spacing.sm,
+    color: theme.colors.neutral.white,
+    fontSize: 12,
+    opacity: 0.7,
+  },
+  editCaptionHint: {
+    fontSize: 14,
+    color: theme.colors.neutral.white,
+    textAlign: 'center',
+    opacity: 0.7,
+  },
 }); 

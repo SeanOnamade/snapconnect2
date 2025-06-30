@@ -12,6 +12,9 @@ import {
   TextInput,
   SafeAreaView,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -63,6 +66,9 @@ export default function FeedScreen({ navigation }: any) {
   const [showSnapViewer, setShowSnapViewer] = useState(false);
   const [isLoadingQuickReply, setIsLoadingQuickReply] = useState(false);
   const [notification, setNotification] = useState<any>(null);
+  const [showEditCaptionModal, setShowEditCaptionModal] = useState(false);
+  const [editedCaption, setEditedCaption] = useState('');
+  const [isUpdatingCaption, setIsUpdatingCaption] = useState(false);
   const { snaps, setSnaps, userData, logout } = useStore();
 
   useEffect(() => {
@@ -327,6 +333,57 @@ export default function FeedScreen({ navigation }: any) {
     } finally {
       setDeletingSnap(null);
     }
+  };
+
+  const handleEditCaption = (snap: Snap) => {
+    setSelectedSnap(snap);
+    setEditedCaption(snap.caption);
+    setShowReplyModal(false);
+    setShowEditCaptionModal(true);
+  };
+
+  const handleSaveCaption = async () => {
+    if (isUpdatingCaption || !selectedSnap) return;
+    
+    setIsUpdatingCaption(true);
+    try {
+      await updateDoc(doc(db, "snaps", selectedSnap.id), {
+        caption: editedCaption.trim()
+      });
+      
+      // Update the local snaps array
+      setSnaps(snaps.map(snap => 
+        snap.id === selectedSnap.id 
+          ? { ...snap, caption: editedCaption.trim() }
+          : snap
+      ));
+      
+      Alert.alert(
+        'Success!',
+        'Caption updated successfully',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setShowEditCaptionModal(false);
+              setEditedCaption('');
+              setSelectedSnap(null);
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error updating caption:', error);
+      Alert.alert('Error', 'Failed to update caption. Please try again.');
+    } finally {
+      setIsUpdatingCaption(false);
+    }
+  };
+
+  const handleCancelEditCaption = () => {
+    setShowEditCaptionModal(false);
+    setEditedCaption('');
+    setSelectedSnap(null);
   };
 
   const dismissNotification = async () => {
@@ -594,76 +651,101 @@ export default function FeedScreen({ navigation }: any) {
                   )}
                   
                   <View style={styles.modalButtons}>
-                    {/* Show edit button for own snaps, cancel button for others */}
+                    {/* Show own snap buttons or other snap buttons */}
                     {auth.currentUser && selectedSnap && selectedSnap.owner === auth.currentUser.uid ? (
-                      <TouchableOpacity
-                        style={[styles.modalButton, styles.sendButtonContainer]}
-                        onPress={() => {
-                          setShowReplyModal(false);
-                          setReplyText('');
-                          setSelectedSnap(null);
-                          navigation.navigate('EditTags', {
-                            snapId: selectedSnap.id,
-                            tags: selectedSnap.interests,
-                          });
-                        }}
-                      >
-                        <LinearGradient
-                          colors={['#00c2c7', '#14b8a6']}
-                          style={styles.sendButtonGradient}
-                        >
-                          <Text style={styles.sendButtonText}>✏️ Edit Tags</Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
+                      // Own snap - show edit and delete options
+                      <View style={styles.ownSnapButtonsContainer}>
+                        {/* Single row: All three buttons side by side */}
+                        <View style={styles.editButtonsRow}>
+                          <TouchableOpacity
+                            style={[styles.modalButton, styles.sendButtonContainer, styles.editButtonThird]}
+                            onPress={() => handleEditCaption(selectedSnap)}
+                          >
+                            <LinearGradient
+                              colors={['#8b5cf6', '#7c3aed']}
+                              style={styles.sendButtonGradient}
+                            >
+                              <Text style={styles.sendButtonText}>📝</Text>
+                              <Text style={styles.sendButtonSubText}>Caption</Text>
+                            </LinearGradient>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity
+                            style={[styles.modalButton, styles.sendButtonContainer, styles.editButtonThird]}
+                            onPress={() => {
+                              setShowReplyModal(false);
+                              setReplyText('');
+                              setSelectedSnap(null);
+                              navigation.navigate('EditTags', {
+                                snapId: selectedSnap.id,
+                                tags: selectedSnap.interests,
+                              });
+                            }}
+                          >
+                            <LinearGradient
+                              colors={['#00c2c7', '#14b8a6']}
+                              style={styles.sendButtonGradient}
+                            >
+                              <Text style={styles.sendButtonText}>✏️</Text>
+                              <Text style={styles.sendButtonSubText}>Tags</Text>
+                            </LinearGradient>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity
+                            style={[styles.modalButton, styles.sendButtonContainer, styles.editButtonThird]}
+                            onPress={() => {
+                              setShowReplyModal(false);
+                              setReplyText('');
+                              setSelectedSnap(null);
+                              confirmDeleteSnap(selectedSnap);
+                            }}
+                            disabled={deletingSnap === selectedSnap.id}
+                          >
+                            <LinearGradient
+                              colors={deletingSnap === selectedSnap.id ? ['#9ca3af', '#6b7280'] : ['#ef4444', '#dc2626']}
+                              style={styles.sendButtonGradient}
+                            >
+                              {deletingSnap === selectedSnap.id ? (
+                                <Text style={[styles.sendButtonText, { fontSize: 14 }]}>Deleting...</Text>
+                              ) : (
+                                <>
+                                  <Text style={styles.sendButtonText}>🗑️</Text>
+                                  <Text style={styles.sendButtonSubText}>Delete</Text>
+                                </>
+                              )}
+                            </LinearGradient>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
                     ) : (
-                      <TouchableOpacity
-                        style={styles.modalButton}
-                        onPress={() => {
-                          setShowReplyModal(false);
-                          setReplyText('');
-                          setSelectedSnap(null);
-                        }}
-                      >
-                        <Text style={styles.cancelButtonText}>Cancel</Text>
-                      </TouchableOpacity>
-                    )}
-                    
-                    {/* Show delete button for own snaps, send button for others */}
-                    {auth.currentUser && selectedSnap && selectedSnap.owner === auth.currentUser.uid ? (
-                      <TouchableOpacity
-                        style={[styles.modalButton, styles.sendButtonContainer]}
-                        onPress={() => {
-                          setShowReplyModal(false);
-                          setReplyText('');
-                          setSelectedSnap(null);
-                          confirmDeleteSnap(selectedSnap);
-                        }}
-                        disabled={deletingSnap === selectedSnap.id}
-                      >
-                        <LinearGradient
-                          colors={deletingSnap === selectedSnap.id ? ['#9ca3af', '#6b7280'] : ['#ef4444', '#dc2626']}
-                          style={styles.sendButtonGradient}
+                      // Other's snap - show cancel and send buttons
+                      <>
+                        <TouchableOpacity
+                          style={styles.modalButton}
+                          onPress={() => {
+                            setShowReplyModal(false);
+                            setReplyText('');
+                            setSelectedSnap(null);
+                          }}
                         >
-                          <Text style={styles.sendButtonText}>
-                            {deletingSnap === selectedSnap.id ? 'Deleting...' : '🗑️ Delete'}
-                          </Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    ) : (
-                      <TouchableOpacity
-                        style={[styles.modalButton, styles.sendButtonContainer]}
-                        onPress={sendReply}
-                        disabled={sendingReply || !replyText.trim()}
-                      >
-                        <LinearGradient
-                          colors={['#2dd4bf', '#14b8a6']}
-                          style={styles.sendButtonGradient}
+                          <Text style={styles.cancelButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity
+                          style={[styles.modalButton, styles.sendButtonContainer]}
+                          onPress={sendReply}
+                          disabled={sendingReply || !replyText.trim()}
                         >
-                          <Text style={styles.sendButtonText}>
-                            {sendingReply ? 'Sending...' : 'Send'}
-                          </Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
+                          <LinearGradient
+                            colors={['#2dd4bf', '#14b8a6']}
+                            style={styles.sendButtonGradient}
+                          >
+                            <Text style={styles.sendButtonText}>
+                              {sendingReply ? 'Sending...' : 'Send'}
+                            </Text>
+                          </LinearGradient>
+                        </TouchableOpacity>
+                      </>
                     )}
                   </View>
                 </>
@@ -671,6 +753,79 @@ export default function FeedScreen({ navigation }: any) {
             </View>
           </LinearGradient>
         </View>
+      </Modal>
+
+      {/* Edit Caption Modal */}
+      <Modal
+        visible={showEditCaptionModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={handleCancelEditCaption}
+      >
+        <KeyboardAvoidingView
+          style={styles.editCaptionModalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.editCaptionModalContent}>
+            <LinearGradient
+              colors={['#8b5cf6', '#7c3aed']}
+              style={styles.editCaptionModalGradient}
+            >
+              {/* Header */}
+              <View style={styles.editCaptionHeader}>
+                <TouchableOpacity
+                  style={styles.editCaptionCancelButton}
+                  onPress={handleCancelEditCaption}
+                >
+                  <Text style={styles.editCaptionCancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.editCaptionTitle}>Edit Caption</Text>
+                
+                <TouchableOpacity
+                  style={[styles.editCaptionSaveButton, isUpdatingCaption && styles.editCaptionSaveButtonDisabled]}
+                  onPress={handleSaveCaption}
+                  disabled={isUpdatingCaption}
+                >
+                  {isUpdatingCaption ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.editCaptionSaveButtonText}>Save</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {/* Content */}
+              <View style={styles.editCaptionContent}>
+                <Text style={styles.editCaptionInstruction}>
+                  Edit your caption to better describe your snap
+                </Text>
+                
+                <View style={styles.editCaptionInputContainer}>
+                  <TextInput
+                    style={styles.editCaptionInput}
+                    placeholder="What's happening?"
+                    placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                    value={editedCaption}
+                    onChangeText={setEditedCaption}
+                    multiline
+                    maxLength={150}
+                    autoFocus
+                  />
+                  
+                  {/* Character counter */}
+                  <Text style={styles.editCaptionCharacterCounter}>
+                    {editedCaption.length}/150
+                  </Text>
+                </View>
+                
+                <Text style={styles.editCaptionHint}>
+                  💡 Tip: Keep it engaging and authentic
+                </Text>
+              </View>
+            </LinearGradient>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Settings Dropdown */}
@@ -960,7 +1115,6 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.xl,
     padding: theme.spacing.lg,
     width: '100%',
-    maxHeight: '80%',
     gap: theme.spacing.md,
     position: 'relative',
   },
@@ -1060,6 +1214,8 @@ const styles = StyleSheet.create({
     width: '100%',
     padding: theme.spacing.md,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 60,
   },
   cancelButtonText: {
     color: theme.colors.neutral.gray[700],
@@ -1069,7 +1225,13 @@ const styles = StyleSheet.create({
   sendButtonText: {
     color: theme.colors.neutral.white,
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: 18,
+  },
+  sendButtonSubText: {
+    color: theme.colors.neutral.white,
+    fontWeight: '500',
+    fontSize: 12,
+    marginTop: 2,
   },
   // Dropdown styles
   dropdownOverlay: {
@@ -1112,6 +1274,113 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     color: '#ef4444',
+  },
+  // Own snap buttons (vertical layout)
+  ownSnapButtonsContainer: {
+    flexDirection: 'column',
+    gap: theme.spacing.sm,
+    width: '100%',
+  },
+  editButtonsRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+  },
+  editButtonHalf: {
+    flex: 1,
+  },
+  editButtonThird: {
+    flex: 1,
+    minHeight: 60,
+  },
+  // Edit Caption Modal Styles
+  editCaptionModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'flex-end',
+  },
+  editCaptionModalContent: {
+    backgroundColor: theme.colors.neutral.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+  },
+  editCaptionModalGradient: {
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  editCaptionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  editCaptionCancelButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  editCaptionCancelButtonText: {
+    color: theme.colors.neutral.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  editCaptionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.neutral.white,
+    flex: 1,
+    textAlign: 'center',
+  },
+  editCaptionSaveButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 8,
+  },
+  editCaptionSaveButtonDisabled: {
+    opacity: 0.6,
+  },
+  editCaptionSaveButtonText: {
+    color: theme.colors.neutral.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  editCaptionContent: {
+    gap: theme.spacing.md,
+  },
+  editCaptionInstruction: {
+    fontSize: 16,
+    color: theme.colors.neutral.white,
+    textAlign: 'center',
+    opacity: 0.9,
+  },
+  editCaptionInputContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    position: 'relative',
+  },
+  editCaptionInput: {
+    color: theme.colors.neutral.white,
+    fontSize: 16,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  editCaptionCharacterCounter: {
+    position: 'absolute',
+    bottom: theme.spacing.sm,
+    right: theme.spacing.sm,
+    color: theme.colors.neutral.white,
+    fontSize: 12,
+    opacity: 0.7,
+  },
+  editCaptionHint: {
+    fontSize: 14,
+    color: theme.colors.neutral.white,
+    textAlign: 'center',
+    opacity: 0.7,
   },
   // Delete snap styles
   snapHeaderRight: {

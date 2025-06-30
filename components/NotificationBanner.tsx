@@ -40,7 +40,7 @@ export default function NotificationBanner({ notification, onDismiss }: Notifica
         <View style={styles.content}>
           <View style={styles.textContainer}>
             <Text style={styles.title}>
-              {displayName} replied to your snap:
+              {displayName} replied to your Snap:
             </Text>
             <Text style={styles.message} numberOfLines={2}>
               "{notification.message}"
